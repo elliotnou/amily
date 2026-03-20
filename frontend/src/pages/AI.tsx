@@ -1,6 +1,5 @@
 import { useParams, Link } from 'react-router-dom'
-import { friends } from '../data/mock'
-import Avatar from '../components/Avatar'
+import { useFriend } from '../lib/hooks/useFriend'
 import { IconArrowLeft, IconSearch } from '../components/Icons'
 
 export default function AI() {
@@ -8,34 +7,25 @@ export default function AI() {
     <div className="page-container">
       <div className="animate-in" style={{ textAlign: 'center', padding: 'var(--space-3xl) 0' }}>
         <div style={{
-          width: 64,
-          height: 64,
-          borderRadius: 'var(--radius-lg)',
-          background: 'var(--ai-bg)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          margin: '0 auto var(--space-lg)',
-          color: 'var(--ai)',
-          fontSize: '1.6rem',
-          fontFamily: 'var(--font-serif)',
-          fontWeight: 600,
+          width: 64, height: 64, borderRadius: 'var(--radius-lg)',
+          background: 'var(--ai-bg)', display: 'flex', alignItems: 'center',
+          justifyContent: 'center', margin: '0 auto var(--space-lg)',
+          color: 'var(--ai)', fontSize: '1.6rem',
+          fontFamily: 'var(--font-serif)', fontWeight: 600,
         }}>
           AI
         </div>
-        <h1 className="page-title" style={{ marginBottom: 'var(--space-sm)' }}>
-          AI Assistant
-        </h1>
+        <h1 className="page-title" style={{ marginBottom: 'var(--space-sm)' }}>AI Assistant</h1>
         <p className="text-sm text-muted text-sans" style={{ maxWidth: '420px', margin: '0 auto var(--space-2xl)' }}>
           Ask anything about your friendships. Get gift ideas, plan hangouts, or prepare for catching up.
         </p>
 
         <div className="flex flex-col gap-sm" style={{ maxWidth: '480px', margin: '0 auto var(--space-2xl)' }}>
           {[
-            'Who haven\'t I seen in a while?',
-            'What should I get Maya for her birthday?',
+            "Who haven't I seen in a while?",
             'Suggest a hangout for this weekend',
-            'Summarize my friendship with Aisha',
+            'Help me plan a birthday surprise',
+            'What should I catch up on?',
           ].map((q, i) => (
             <div key={i} className="card card-compact card-clickable" style={{ textAlign: 'left' }}>
               <span style={{ fontSize: '0.88rem' }}>{q}</span>
@@ -55,13 +45,19 @@ export default function AI() {
 
 export function AIGiftIdeas() {
   const { friendId } = useParams()
-  const friend = friends.find(f => f.id === friendId)
-  if (!friend) return <div className="page-container"><p>Friend not found.</p></div>
+  const { friend } = useFriend(friendId)
+  if (!friend) return <div className="page-container"><p style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-sans)' }}>Loading…</p></div>
+
+  const drinkFact = friend.facts.find(f => f.category.toLowerCase().includes('drink'))?.value
+  const artistFact = friend.facts.find(f => f.category.toLowerCase().includes('artist'))?.value
+  const foodFact = friend.facts.find(f => f.category.toLowerCase().includes('food'))?.value
 
   const giftSuggestions = [
-    { name: 'Fujifilm Instax Mini Film Pack', price: '$15 - $25', reason: `${friend.name.split(' ')[0]} loves film photography — keeps their camera loaded.` },
-    { name: 'Local coffee subscription', price: '$20 - $35/mo', reason: `Based on their drink order (${friend.facts.find(f => f.category === 'Drink order')?.value || 'coffee'}), they'd enjoy new roasts.` },
-    { name: 'Vinyl record', price: '$25 - $40', reason: `${friend.facts.find(f => f.category === 'Fave artist')?.value || 'Their favorite artist'} on vinyl would be thoughtful.` },
+    { name: 'Experience gift', price: '$30 - $80', reason: `Something you can do together — ${friend.name.split(' ')[0]} would appreciate the memory more than an object.` },
+    ...(drinkFact ? [{ name: 'Specialty drink kit', price: '$20 - $40', reason: `They love ${drinkFact} — a premium version would be a perfect surprise.` }] : []),
+    ...(artistFact ? [{ name: `${artistFact} vinyl or merch`, price: '$25 - $60', reason: `${friend.name.split(' ')[0]}'s favorite — direct or heartfelt.` }] : []),
+    ...(foodFact ? [{ name: `${foodFact} cooking class or kit`, price: '$40 - $100', reason: `They love ${foodFact} — help them make it at home.` }] : []),
+    { name: 'Handwritten card', price: 'Free', reason: 'The rarest gift. Tell them what they mean to you in writing.' },
   ]
 
   return (
@@ -89,8 +85,8 @@ export function AIGiftIdeas() {
 
 export function AICatchupBrief() {
   const { friendId } = useParams()
-  const friend = friends.find(f => f.id === friendId)
-  if (!friend) return <div className="page-container"><p>Friend not found.</p></div>
+  const { friend } = useFriend(friendId)
+  if (!friend) return <div className="page-container"><p style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-sans)' }}>Loading…</p></div>
 
   return (
     <div className="page-container">
@@ -124,7 +120,7 @@ export function AICatchupBrief() {
         </div>
         <div className="fact-grid">
           {friend.facts.map(fact => (
-            <div key={fact.category} className="card card-compact card-flat" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
+            <div key={fact.id} className="card card-compact card-flat" style={{ background: 'var(--bg)', border: '1px solid var(--border)' }}>
               <div className="text-xs text-muted text-sans" style={{ marginBottom: '4px' }}>{fact.category}</div>
               <div style={{ fontWeight: 500 }}>{fact.value}</div>
             </div>
@@ -137,11 +133,12 @@ export function AICatchupBrief() {
 
 export function AIHangoutIdeas() {
   const { friendId } = useParams()
-  const friend = friends.find(f => f.id === friendId)
-  if (!friend) return <div className="page-container"><p>Friend not found.</p></div>
+  const { friend } = useFriend(friendId)
+  if (!friend) return <div className="page-container"><p style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-sans)' }}>Loading…</p></div>
 
+  const foodFact = friend.facts.find(f => f.category.toLowerCase().includes('food'))?.value
   const ideas = [
-    { type: 'Food', suggestion: `Try a new spot — ${friend.name.split(' ')[0]} loves ${friend.facts.find(f => f.category === 'Fave food')?.value || 'good food'}.` },
+    { type: 'Food', suggestion: `Try a new spot — ${friend.name.split(' ')[0]} loves ${foodFact || 'good food'}.` },
     { type: 'Activity', suggestion: 'Visit a gallery or museum. Something creative to match their interests.' },
     { type: 'Chill', suggestion: 'Coffee and a walk. Low-key, good for catching up.' },
     { type: 'Adventure', suggestion: "Day trip somewhere neither of you has been." },

@@ -1,12 +1,13 @@
 import { useParams, Link } from 'react-router-dom'
-import { hangouts, friends } from '../data/mock'
+import { useHangout } from '../lib/hooks/useHangouts'
 import Avatar from '../components/Avatar'
 import { IconArrowLeft } from '../components/Icons'
 
 export default function HangoutDetail() {
   const { id } = useParams()
-  const hangout = hangouts.find(h => h.id === id)
+  const { hangout, loading } = useHangout(id)
 
+  if (loading) return <div className="page-container"><p style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-sans)' }}>Loading…</p></div>
   if (!hangout) return <div className="page-container"><p>Hangout not found.</p></div>
 
   return (
@@ -29,54 +30,47 @@ export default function HangoutDetail() {
       </div>
 
       {/* Who was there */}
-      <div className="section animate-in animate-in-2">
-        <div className="section-header">
-          <span className="section-label">Who was there</span>
-        </div>
-        <div className="flex flex-col gap-sm">
-          {hangout.friends.map(f => {
-            const friendData = friends.find(fr => fr.id === f.id)
-            return (
-              <Link key={f.id} to={`/friends/${f.id}`} className="card card-compact card-clickable">
+      {hangout.hangout_friends.length > 0 && (
+        <div className="section animate-in animate-in-2">
+          <div className="section-header">
+            <span className="section-label">Who was there</span>
+          </div>
+          <div className="flex flex-col gap-sm">
+            {hangout.hangout_friends.map(hf => (
+              <Link key={hf.id} to={`/friends/${hf.friend_id}`} className="card card-compact card-clickable">
                 <div className="flex items-center gap-md">
-                  {friendData ? (
-                    <Avatar initials={friendData.initials} color={friendData.avatarColor} size="sm" />
-                  ) : (
-                    <Avatar initials="" color="" size="sm" />
-                  )}
-                  <span style={{ flex: 1, fontWeight: 500, fontSize: '0.9rem' }}>{f.name}</span>
-                  {f.feeling && (
-                    <span className="pill pill-default">{f.feeling.label}</span>
+                  <Avatar initials={hf.friend_name.split(' ').map(w => w[0]).join('').slice(0, 2)} color="var(--accent)" size="sm" />
+                  <span style={{ flex: 1, fontWeight: 500, fontSize: '0.9rem' }}>{hf.friend_name}</span>
+                  {hf.feeling_label && (
+                    <span className="pill pill-default">{hf.feeling_label}</span>
                   )}
                 </div>
               </Link>
-            )
-          })}
+            ))}
+          </div>
         </div>
-      </div>
+      )}
 
       {/* Highlights */}
-      <div className="section animate-in animate-in-3">
-        <div className="section-header">
-          <span className="section-label">Highlights</span>
+      {hangout.highlights && (
+        <div className="section animate-in animate-in-3">
+          <div className="section-header">
+            <span className="section-label">Highlights</span>
+          </div>
+          <div className="card" style={{ fontFamily: 'var(--font-serif)', fontSize: '0.95rem', lineHeight: 1.85 }}>
+            {hangout.highlights}
+          </div>
         </div>
-        <div className="card" style={{
-          fontFamily: 'var(--font-serif)',
-          fontSize: '0.95rem',
-          lineHeight: 1.85,
-        }}>
-          {hangout.highlights}
-        </div>
-      </div>
+      )}
 
       {/* Follow-ups */}
-      {hangout.followUps.length > 0 && (
+      {hangout.follow_ups.length > 0 && (
         <div className="section animate-in animate-in-4">
           <div className="section-header">
             <span className="section-label">Follow-ups</span>
           </div>
           <div className="flex flex-col gap-sm">
-            {hangout.followUps.map((fu, i) => (
+            {hangout.follow_ups.map((fu, i) => (
               <div key={i} className="flex items-center gap-md" style={{
                 padding: '10px var(--space-md)',
                 background: 'var(--bg-card)',

@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
+import { LogoIcon } from '../components/Icons'
 import { IconArrowRight } from '../components/Icons'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
@@ -115,15 +116,15 @@ export default function Landing() {
           gap: 10,
         }}>
           <div style={{
-            width: 32, height: 32, borderRadius: 10,
+            width: 30, height: 30, borderRadius: 9,
             background: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: 'white', fontSize: '0.75rem', fontWeight: 600,
-          }}>fg</div>
-          friendgraph
+            color: 'white',
+          }}><LogoIcon size={18} /></div>
+          amily
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
-          <Link to="/home" className="btn btn-ghost" style={{ fontFamily: 'var(--font-serif)' }}>Log in</Link>
-          <Link to="/home" className="btn btn-primary">Sign up free</Link>
+          <Link to="/login" className="btn btn-ghost" style={{ fontFamily: 'var(--font-serif)' }}>Log in</Link>
+          <Link to="/login" className="btn btn-primary">Sign up free</Link>
         </div>
       </nav>
 
@@ -194,10 +195,10 @@ export default function Landing() {
         </p>
 
         <div className="hero-buttons" style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
-          <Link to="/home" className="btn btn-primary" style={{ padding: '14px 32px', fontSize: '1rem' }}>
+          <Link to="/login" className="btn btn-primary" style={{ padding: '14px 32px', fontSize: '1rem' }}>
             Get started — it's free <IconArrowRight size={16} />
           </Link>
-          <Link to="/home" className="btn btn-default" style={{ padding: '14px 32px', fontSize: '1rem', borderRadius: 'var(--radius-full)' }}>
+          <Link to="/login" className="btn btn-default" style={{ padding: '14px 32px', fontSize: '1rem', borderRadius: 'var(--radius-full)' }}>
             Log in
           </Link>
         </div>
@@ -605,7 +606,7 @@ export default function Landing() {
           }}>
             Free forever. Your data stays yours. No social features, no sharing — just a private space for the people who matter.
           </p>
-          <Link to="/home" style={{
+          <Link to="/login" style={{
             display: 'inline-flex',
             alignItems: 'center',
             gap: 8,
@@ -631,7 +632,7 @@ export default function Landing() {
         fontSize: '0.72rem',
         color: 'var(--text-muted)',
       }}>
-        friendgraph — a personal tool for the people who matter
+        amily — a personal tool for the people who matter
       </footer>
     </div>
   )
