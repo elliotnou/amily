@@ -1,4 +1,4 @@
-import { useState, useRef } from 'react'
+import { useState, useRef, useEffect } from 'react'
 import { useParams, Link, useNavigate } from 'react-router-dom'
 import { useFriend } from '../lib/hooks/useFriend'
 import type { FriendContactRow } from '../lib/hooks/useFriend'
@@ -12,6 +12,9 @@ import { computeRadarScores } from '../lib/friendScores'
 import { uploadImage } from '../lib/cloudinary'
 import { IconArrowLeft, IconPhone, IconMail, IconLink, IconPaintbrush } from '../components/Icons'
 import { tierLabel, tierColor } from '../data/mock'
+import { useAuth } from '../lib/auth'
+import { supabase } from '../lib/supabase'
+import { useGallery } from '../lib/hooks/useGallery'
 
 const MET_HOW_OPTIONS = ['School','Work','Mutual friend','Online','Neighborhood','Event','Travel','Family','Other']
 
@@ -64,6 +67,15 @@ function FreshnessRing({ percentage, color, size = 140, trackColor }: { percenta
   )
 }
 
+function InnerLabel({ children, style, accent }: { children: React.ReactNode; style?: React.CSSProperties; accent?: string }) {
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 6, fontFamily: 'var(--font-sans)', fontSize: '0.64rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', ...style as object }}>
+      {accent && <span style={{ width: 6, height: 6, borderRadius: '50%', background: accent, flexShrink: 0, opacity: 0.7 }} />}
+      {children}
+    </span>
+  )
+}
+
 export default function FriendProfile() {
   const { id } = useParams()
   const navigate = useNavigate()
@@ -84,10 +96,31 @@ export default function FriendProfile() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleteNameInput, setDeleteNameInput] = useState('')
 
-  // ── Style state (persists in-session) ──
+  const { user } = useAuth()
+  const { images: galleryImages, uploading: galleryUploading, uploadPhoto, deleteImage } = useGallery(id)
+  const galleryInputRef = useRef<HTMLInputElement>(null)
+  const [lightboxIdx, setLightboxIdx] = useState<number | null>(null)
+
+  // ── Style state (persisted to profile_customizations) ──
   const [themeColor, setThemeColor] = useState<string | null>(null)
   const [profileFont, setProfileFont] = useState('default')
   const [effect, setEffect] = useState('none')
+
+  useEffect(() => {
+    if (!id) return
+    supabase
+      .from('profile_customizations')
+      .select('theme_color, font, effect')
+      .eq('friend_id', id)
+      .maybeSingle()
+      .then(({ data }) => {
+        if (data) {
+          setThemeColor(data.theme_color ?? null)
+          setProfileFont(data.font ?? 'default')
+          setEffect(data.effect ?? 'none')
+        }
+      })
+  }, [id])
 
   // ── Edit Info state ──
   const [editName, setEditName] = useState('')
@@ -169,12 +202,32 @@ export default function FriendProfile() {
   }
   const [savingContact, setSavingContact] = useState(false)
 
+  // ── Day counter: days since met_date (friendship age) ──
+  const computedDayCount = friend?.met_date
+    ? Math.max(0, Math.floor((Date.now() - new Date(friend.met_date).getTime()) / 86400000))
+    : (friend?.day_count ?? 0)
+
+  useEffect(() => {
+    if (!friend || !friend.met_date || computedDayCount === friend.day_count) return
+    updateFriend({ day_count: computedDayCount })
+  }, [id, computedDayCount]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  // ── Freshness ring: days since last hangout ──
+  const friendHangouts = hangouts.filter(h => h.hangout_friends.some(hf => hf.friend_id === id))
+  const lastHangoutDate = friendHangouts.length > 0
+    ? [...friendHangouts].sort((a, b) => b.date.localeCompare(a.date))[0].date
+    : null
+  const daysSinceContact = lastHangoutDate
+    ? Math.floor((Date.now() - new Date(lastHangoutDate).getTime()) / 86400000)
+    : null
+
   if (loading) return <LoadingScreen />
   if (!friend) return <div className="page-container"><p style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-sans)' }}>Friend not found.</p></div>
 
-  const friendHangouts = hangouts.filter(h => h.hangout_friends.some(hf => hf.friend_id === id))
   const tabs: Tab[] = ['overview', 'impressions', 'gallery', 'gifts']
-  const freshness = Math.max(10, Math.min(95, 100 - Math.floor(friend.day_count / 40)))
+  const freshness = daysSinceContact != null
+    ? Math.max(5, 100 - Math.floor(daysSinceContact / 4))
+    : 50
   const bannerColor = themeColor || friend.avatar_color
   const fontFamily = profileFont === 'mono' ? "'SF Mono', 'Fira Code', monospace"
     : profileFont === 'sans' ? 'var(--font-sans)' : undefined
@@ -246,290 +299,311 @@ export default function FriendProfile() {
   const FACT_CATEGORIES = ['Fave food','Drink order','Dietary','Fave artist','Fave color','Fave movie','Fave book','Shirt size','Other']
 
   return (
-    <div className="page-container" style={{ maxWidth: 1000, ...(fontFamily ? { fontFamily } : {}) }}>
+    <div className="page-container" style={{ maxWidth: 1080, ...(fontFamily ? { fontFamily } : {}) }}>
+
+      {/* Back link — outside the card */}
       <div className="animate-in" style={{ marginBottom: 'var(--space-md)' }}>
-        <Link to="/friends" className="back-link">
-          <IconArrowLeft size={14} /> Friends
-        </Link>
+        <Link to="/friends" className="back-link"><IconArrowLeft size={14} /> Friends</Link>
       </div>
 
-      {/* ═══ HERO BANNER ═══ */}
+      {/* ═══ UNIFIED PROFILE CARD ═══ */}
       <div className="animate-in animate-in-1" style={{
-        background: bannerColor, borderRadius: 'var(--radius-xl)',
-        marginBottom: 'var(--space-lg)', overflow: 'hidden',
-        boxShadow: effect === 'glow' ? `0 0 40px ${bannerColor}44, var(--shadow-md)` : 'var(--shadow-md)',
-        position: 'relative',
+        background: 'var(--bg-card)',
+        borderRadius: 'var(--radius-xl)',
+        overflow: 'hidden',
+        boxShadow: effect === 'glow'
+          ? `0 0 60px ${bannerColor}2e, 0 8px 32px rgba(0,0,0,0.10)`
+          : '0 2px 20px rgba(0,0,0,0.07), 0 1px 4px rgba(0,0,0,0.04)',
+        marginBottom: 'var(--space-3xl)',
       }}>
-        {/* Both buttons stacked on the top-right */}
-        <div style={{ position: 'absolute', top: 12, right: 12, zIndex: 2, display: 'flex', gap: 8 }}>
-          <button onClick={openEditInfo} style={{
-            background: 'rgba(255,255,255,0.18)', border: 'none', borderRadius: 'var(--radius-full)',
-            width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', color: 'white', backdropFilter: 'blur(6px)',
-          }} title="Edit info">
-            <IconPencil size={15} />
-          </button>
-          <button onClick={() => setShowCustomize(true)} style={{
-            background: 'rgba(255,255,255,0.18)', border: 'none', borderRadius: 'var(--radius-full)',
-            width: 34, height: 34, display: 'flex', alignItems: 'center', justifyContent: 'center',
-            cursor: 'pointer', color: 'white', backdropFilter: 'blur(6px)',
-          }} title="Customize style">
-            <IconPaintbrush size={16} />
-          </button>
-        </div>
 
+        {/* ── Hero ── */}
         <div style={{
-          background: `linear-gradient(135deg, ${bannerColor} 0%, ${bannerColor}cc 50%, ${bannerColor}88 100%)`,
-          padding: '36px 32px 32px', display: 'flex', gap: 32, alignItems: 'center', flexWrap: 'wrap',
+          background: bannerColor,
+          padding: '44px 48px 40px',
+          position: 'relative',
         }}>
-          <div style={{ position: 'relative', flexShrink: 0, width: 140, height: 140 }}>
-            <FreshnessRing percentage={freshness} color="rgba(255,255,255,0.85)" size={140} trackColor="rgba(255,255,255,0.15)" />
-            <div style={{
-              position: 'absolute', top: 12, left: 12, right: 12, bottom: 12, borderRadius: '50%',
-              background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              color: 'white', fontFamily: 'var(--font-serif)', fontSize: '2.4rem', fontWeight: 500, backdropFilter: 'blur(4px)',
-              overflow: 'hidden',
-            }}>
-              {friend.avatar_url
-                ? <img src={friend.avatar_url} alt={friend.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                : friend.initials}
-            </div>
-            <div style={{
-              position: 'absolute', bottom: -4, left: '50%', transform: 'translateX(-50%)',
-              background: 'white', borderRadius: 'var(--radius-full)', padding: '3px 12px',
-              fontSize: '0.65rem', fontFamily: 'var(--font-sans)', fontWeight: 600, color: bannerColor, whiteSpace: 'nowrap', boxShadow: 'var(--shadow-sm)',
-            }}>{freshness}% fresh</div>
+          <div style={{ position: 'absolute', top: 16, right: 16, display: 'flex', gap: 8 }}>
+            <button onClick={openEditInfo} style={{ background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 'var(--radius-full)', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'white', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' as any }} title="Edit info"><IconPencil size={15} /></button>
+            <button onClick={() => setShowCustomize(true)} style={{ background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 'var(--radius-full)', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'white', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' as any }} title="Customize style"><IconPaintbrush size={16} /></button>
           </div>
 
-          <div style={{ flex: 1, minWidth: 200, color: 'white' }}>
-            <h1 style={{
-              fontFamily: fontFamily || 'var(--font-serif)', fontSize: '1.8rem', fontWeight: 500, marginBottom: 4,
-              ...(effect === 'gradient' ? { background: 'linear-gradient(135deg, white 0%, rgba(255,255,255,0.6) 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' } : { color: 'white' }),
-            }}>{friend.name}</h1>
-            <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.82rem', opacity: 0.8, marginBottom: 16 }}>
-              {[friend.location, friend.met_how, friend.met_date ? `since ${friend.met_date}` : null].filter(Boolean).join(' · ')}
-            </p>
-            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+          <div style={{ display: 'flex', gap: 32, alignItems: 'center', flexWrap: 'wrap' }}>
+            {/* Avatar + freshness ring */}
+            <div style={{ position: 'relative', flexShrink: 0, width: 120, height: 120 }}>
+              <FreshnessRing percentage={freshness} color="rgba(255,255,255,0.9)" size={120} trackColor="rgba(255,255,255,0.15)" />
+              <div style={{ position: 'absolute', top: 10, left: 10, right: 10, bottom: 10, borderRadius: '50%', background: 'rgba(255,255,255,0.15)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', fontFamily: 'var(--font-serif)', fontSize: '2rem', fontWeight: 500, backdropFilter: 'blur(4px)', WebkitBackdropFilter: 'blur(4px)' as any, overflow: 'hidden' }}>
+                {friend.avatar_url ? <img src={friend.avatar_url} alt={friend.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : friend.initials}
+              </div>
+              <div style={{ position: 'absolute', bottom: -4, left: '50%', transform: 'translateX(-50%)', background: 'white', borderRadius: 'var(--radius-full)', padding: '2px 10px', fontSize: '0.62rem', fontFamily: 'var(--font-sans)', fontWeight: 600, color: bannerColor, whiteSpace: 'nowrap', boxShadow: 'var(--shadow-sm)' }}>{freshness}% fresh</div>
+            </div>
+
+            {/* Name + meta + badges */}
+            <div style={{ flex: 1, minWidth: 160, color: 'white' }}>
+              <h1 style={{ fontFamily: fontFamily || 'var(--font-serif)', fontSize: '2rem', fontWeight: 500, marginBottom: 4, lineHeight: 1.15, ...(effect === 'gradient' ? { background: 'linear-gradient(135deg, white 0%, rgba(255,255,255,0.6) 100%)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent', backgroundClip: 'text' } : { color: 'white' }) }}>{friend.name}</h1>
+              <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8rem', color: 'rgba(255,255,255,0.72)', marginBottom: 14, lineHeight: 1.5 }}>
+                {[friend.location, friend.met_how, friend.met_date ? `since ${friend.met_date}` : null].filter(Boolean).join(' · ')}
+              </p>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6 }}>
+                {[
+                  { label: tierLabel(friend.tier) },
+                  { label: `day ${computedDayCount.toLocaleString()}`, serif: true },
+                  friend.birthday ? { label: friend.birthday } : null,
+                  friend.ai_label ? { label: friend.ai_label, bold: true } : null,
+                ].filter(Boolean).map((badge, i) => (
+                  <span key={i} style={{ padding: '3px 10px', borderRadius: 'var(--radius-full)', background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.22)', fontSize: '0.7rem', fontFamily: badge!.serif ? 'var(--font-serif)' : 'var(--font-sans)', fontWeight: badge!.bold ? 600 : 500, fontStyle: badge!.serif ? 'italic' : 'normal', color: 'white' }}>{badge!.label}</span>
+                ))}
+              </div>
+            </div>
+
+            {/* Stats */}
+            <div style={{ display: 'flex', gap: 28, flexShrink: 0 }}>
               {[
-                { label: tierLabel(friend.tier) },
-                { label: `day ${friend.day_count.toLocaleString()}`, serif: true },
-                friend.birthday ? { label: friend.birthday } : null,
-                friend.ai_label ? { label: friend.ai_label, bold: true } : null,
-              ].filter(Boolean).map((badge, i) => (
-                <span key={i} style={{
-                  padding: '4px 12px', borderRadius: 'var(--radius-full)',
-                  background: 'rgba(255,255,255,0.2)', backdropFilter: 'blur(4px)',
-                  fontSize: '0.72rem', fontFamily: badge!.serif ? 'var(--font-serif)' : 'var(--font-sans)',
-                  fontWeight: badge!.bold ? 600 : 500, fontStyle: badge!.serif ? 'italic' : 'normal', color: 'white',
-                }}>{badge!.label}</span>
+                { label: 'Hangouts', value: friend.hangout_count },
+                { label: 'Notes', value: friend.notes.length },
+                { label: 'Closeness', value: `${radarScores.closeness}%` },
+              ].map(stat => (
+                <div key={stat.label} style={{ textAlign: 'center' }}>
+                  <div style={{ fontFamily: 'var(--font-serif)', fontSize: '1.7rem', fontWeight: 600, color: 'white', lineHeight: 1 }}>{stat.value}</div>
+                  <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.6rem', color: 'rgba(255,255,255,0.62)', marginTop: 4, textTransform: 'uppercase', letterSpacing: '0.07em' }}>{stat.label}</div>
+                </div>
               ))}
             </div>
           </div>
-
-          <div style={{ display: 'flex', gap: 24, flexShrink: 0 }}>
-            {[
-              { label: 'Hangouts', value: friend.hangout_count },
-              { label: 'Notes', value: friend.notes.length },
-              { label: 'Closeness', value: `${radarScores.closeness}%` },
-            ].map(stat => (
-              <div key={stat.label} style={{ textAlign: 'center' }}>
-                <div style={{ fontFamily: 'var(--font-serif)', fontSize: '1.6rem', fontWeight: 600, color: 'white', lineHeight: 1 }}>{stat.value}</div>
-                <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.65rem', color: 'rgba(255,255,255,0.7)', marginTop: 4, textTransform: 'uppercase', letterSpacing: '0.06em' }}>{stat.label}</div>
-              </div>
-            ))}
-          </div>
         </div>
-      </div>
 
-      {/* ═══ TABS ═══ */}
-      <div className="tabs animate-in animate-in-2">
-        {tabs.map(tab => (
-          <button key={tab} className={`tab ${activeTab === tab ? 'active' : ''}`} onClick={() => setActiveTab(tab)}>
-            {tab.charAt(0).toUpperCase() + tab.slice(1)}
-          </button>
-        ))}
-      </div>
+        {/* ── Tab bar (lives on the card) ── */}
+        <div style={{ display: 'flex', borderBottom: '1px solid rgba(0,0,0,0.06)', padding: '0 48px', background: 'var(--bg-card)' }}>
+          {tabs.map(tab => (
+            <button key={tab} onClick={() => setActiveTab(tab)} style={{
+              padding: '13px 18px', border: 'none', background: 'none', cursor: 'pointer',
+              fontFamily: 'var(--font-sans)', fontSize: '0.82rem',
+              fontWeight: activeTab === tab ? 600 : 400,
+              color: activeTab === tab ? bannerColor : 'var(--text-muted)',
+              borderBottom: activeTab === tab ? `2px solid ${bannerColor}` : '2px solid transparent',
+              marginBottom: -1, transition: 'color 0.15s',
+            }}>{tab.charAt(0).toUpperCase() + tab.slice(1)}</button>
+          ))}
+        </div>
 
-      {/* ═══ OVERVIEW TAB ═══ */}
-      {activeTab === 'overview' && (
-        <div className="animate-in">
-          {/* AI actions */}
-          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 'var(--space-lg)' }}>
-            <Link to={`/ai/gifts/${friend.id}`} className="btn btn-ai btn-sm">Gift ideas</Link>
-            <Link to={`/ai/catchup/${friend.id}`} className="btn btn-ai btn-sm">Catch-up brief</Link>
-            <Link to={`/ai/hangout-ideas/${friend.id}`} className="btn btn-ai btn-sm">Hangout ideas</Link>
-          </div>
+        {/* ── Tab content ── */}
+        <div style={{ padding: '32px 48px 48px' }}>
 
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)', marginBottom: 'var(--space-xl)' }}>
-            {/* LEFT */}
-            <div className="flex flex-col gap-md">
-              <div className="card">
-                {(friend.tags.length > 0) && (
-                  <div style={{ marginBottom: 'var(--space-md)' }}>
-                    <div className="section-label-sm" style={{ marginBottom: 8 }}>Tags</div>
-                    <div className="pill-wrap">{friend.tags.map(tag => <span key={tag} className="pill pill-default">{tag}</span>)}</div>
-                  </div>
-                )}
+          {/* OVERVIEW */}
+          {activeTab === 'overview' && (
+            <div className="animate-in">
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 'var(--space-xl)' }}>
+                <Link to={`/ai/gifts/${friend.id}`} className="btn btn-ai btn-sm">Gift ideas</Link>
+                <Link to={`/ai/catchup/${friend.id}`} className="btn btn-ai btn-sm">Catch-up brief</Link>
+                <Link to={`/ai/hangout-ideas/${friend.id}`} className="btn btn-ai btn-sm">Hangout ideas</Link>
+              </div>
+
+              {/* ── Two-column info layout ── */}
+              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 48px', marginBottom: 'var(--space-xl)' }}>
+
+                {/* Left col */}
                 <div>
-                  <div className="flex items-center justify-between" style={{ marginBottom: 8 }}>
-                    <span className="section-label-sm">Interests</span>
+                  {/* Tags + Interests */}
+                  <div style={{ marginBottom: 28 }}>
+                    {friend.tags.length > 0 && (
+                      <div style={{ marginBottom: 16 }}>
+                        <InnerLabel accent={bannerColor}>Tags</InnerLabel>
+                        <div className="pill-wrap" style={{ marginTop: 8 }}>{friend.tags.map(tag => <span key={tag} className="pill pill-default">{tag}</span>)}</div>
+                      </div>
+                    )}
+                    <InnerLabel accent={bannerColor}>Interests</InnerLabel>
+                    <div className="pill-wrap" style={{ marginTop: 8 }}>
+                      {friend.interests.map(i => <span key={i} className="pill pill-accent">{i}</span>)}
+                      {friend.interests.length === 0 && <span className="text-xs text-muted text-sans">None yet</span>}
+                    </div>
                   </div>
-                  <div className="pill-wrap">
-                    {friend.interests.map(i => <span key={i} className="pill pill-accent">{i}</span>)}
-                    {friend.interests.length === 0 && <span className="text-xs text-muted text-sans">None yet</span>}
-                  </div>
-                </div>
-              </div>
 
-              <div className="card">
-                <div className="flex items-center justify-between" style={{ marginBottom: 10 }}>
-                  <span className="section-label-sm">Contact</span>
-                  <button className="btn btn-ghost btn-sm text-sans" style={{ padding: '2px 6px', fontSize: '0.68rem' }} onClick={() => setShowContactModal(true)}>Edit</button>
-                </div>
-                {Object.values(contact).some(Boolean) ? (
-                  <div className="flex flex-col gap-sm">
-                    {contact.phone && <ContactRow icon={<IconPhone size={12} />} value={contact.phone} bg="var(--positive-bg)" color="var(--positive)" />}
-                    {contact.email && <ContactRow icon={<IconMail size={12} />} value={contact.email} bg="var(--accent-bg)" color="var(--accent)" />}
-                    {contact.instagram && <ContactRow icon={<IconLink size={12} />} value={contact.instagram} bg="var(--inner-circle-bg)" color="var(--inner-circle)" />}
-                    {contact.twitter && <ContactRow icon={<IconLink size={12} />} value={contact.twitter} bg="var(--close-friend-bg)" color="var(--close-friend)" />}
-                    {contact.linkedin && <ContactRow icon={<IconLink size={12} />} value={contact.linkedin} bg="var(--accent-bg)" color="var(--accent)" />}
-                    {contact.snapchat && <ContactRow icon={<IconLink size={12} />} value={contact.snapchat} bg="var(--casual-bg)" color="var(--casual)" />}
-                  </div>
-                ) : (
-                  <button className="btn btn-default btn-sm" onClick={() => setShowContactModal(true)}>Add contact info</button>
-                )}
-              </div>
-            </div>
-
-            {/* RIGHT — Relationship Radar */}
-            <div className="flex flex-col gap-md">
-              <div className="card" style={{ padding: 'var(--space-md)', display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
-                <div className="flex items-center justify-between" style={{ width: '100%', marginBottom: 4 }}>
-                  <span className="section-label-sm">Relationship radar</span>
-                  <span className="text-xs text-muted text-sans">pure math</span>
-                </div>
-                <RelationshipRadar scores={radarScores} color={friend.avatar_color} size={200} />
-              </div>
-
-              {/* Facts card — compact preview + open panel */}
-              <div className="card">
-                <div className="flex items-center justify-between" style={{ marginBottom: 10 }}>
-                  <span className="section-label-sm">Facts</span>
-                  <div style={{ display: 'flex', gap: 6 }}>
-                    <button className="btn btn-ghost btn-sm text-sans" style={{ padding: '2px 6px', fontSize: '0.68rem' }} onClick={() => setShowFactModal(true)}>+ add</button>
-                    <button
-                      className="btn btn-ghost btn-sm text-sans"
-                      style={{ padding: '2px 6px', fontSize: '0.68rem', display: 'flex', alignItems: 'center', gap: 3 }}
-                      onClick={() => setShowFactsPanel(true)}
-                      title="View all facts"
-                    >
-                      <IconExpand size={11} /> all
-                    </button>
-                  </div>
-                </div>
-
-                {friend.facts.length === 0 ? (
-                  <span className="text-xs text-muted text-sans">No facts yet</span>
-                ) : (
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
-                    {friend.facts.slice(0, 4).map(fact => (
-                      <FactItem key={fact.id} fact={fact} onDelete={handleDeleteFact} deletingId={deletingFactId} accentColor={bannerColor} />
-                    ))}
-                    {friend.facts.length > 4 && (
-                      <button onClick={() => setShowFactsPanel(true)} style={{
-                        padding: '10px 12px', background: 'var(--bg)', borderRadius: 'var(--radius-sm)',
-                        border: '1px dashed var(--border)', cursor: 'pointer', color: 'var(--text-muted)',
-                        fontFamily: 'var(--font-sans)', fontSize: '0.75rem', textAlign: 'center',
-                      }}>
-                        +{friend.facts.length - 4} more
-                      </button>
+                  {/* Contact */}
+                  <div style={{ marginBottom: 28, paddingTop: 20, borderTop: `1px solid ${bannerColor}22` }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                      <InnerLabel accent={bannerColor}>Contact</InnerLabel>
+                      <button className="btn btn-ghost btn-sm text-sans" style={{ padding: '2px 6px', fontSize: '0.68rem' }} onClick={() => setShowContactModal(true)}>Edit</button>
+                    </div>
+                    {Object.values(contact).some(Boolean) ? (
+                      <div className="flex flex-col gap-sm">
+                        {contact.phone && <ContactRow icon={<IconPhone size={12} />} value={contact.phone} bg="var(--positive-bg)" color="var(--positive)" />}
+                        {contact.email && <ContactRow icon={<IconMail size={12} />} value={contact.email} bg="var(--accent-bg)" color="var(--accent)" />}
+                        {contact.instagram && <ContactRow icon={<IconLink size={12} />} value={contact.instagram} bg="var(--inner-circle-bg)" color="var(--inner-circle)" />}
+                        {contact.twitter && <ContactRow icon={<IconLink size={12} />} value={contact.twitter} bg="var(--close-friend-bg)" color="var(--close-friend)" />}
+                        {contact.linkedin && <ContactRow icon={<IconLink size={12} />} value={contact.linkedin} bg="var(--accent-bg)" color="var(--accent)" />}
+                        {contact.snapchat && <ContactRow icon={<IconLink size={12} />} value={contact.snapchat} bg="var(--casual-bg)" color="var(--casual)" />}
+                      </div>
+                    ) : (
+                      <button className="btn btn-ghost btn-sm" onClick={() => setShowContactModal(true)} style={{ color: 'var(--text-muted)', fontSize: '0.78rem' }}>+ Add contact info</button>
                     )}
                   </div>
+                </div>
+
+                {/* Right col */}
+                <div>
+                  {/* Radar */}
+                  <div style={{ marginBottom: 28, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: 4 }}>
+                      <InnerLabel accent={bannerColor}>Relationship radar</InnerLabel>
+                      <span className="text-xs text-muted text-sans">pure math</span>
+                    </div>
+                    <RelationshipRadar scores={radarScores} color={bannerColor} size={200} />
+                  </div>
+
+                  {/* Facts */}
+                  <div style={{ paddingTop: 20, borderTop: `1px solid ${bannerColor}22` }}>
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+                      <InnerLabel accent={bannerColor}>Facts</InnerLabel>
+                      <div style={{ display: 'flex', gap: 6 }}>
+                        <button className="btn btn-ghost btn-sm text-sans" style={{ padding: '2px 6px', fontSize: '0.68rem' }} onClick={() => setShowFactModal(true)}>+ add</button>
+                        <button className="btn btn-ghost btn-sm text-sans" style={{ padding: '2px 6px', fontSize: '0.68rem', display: 'flex', alignItems: 'center', gap: 3 }} onClick={() => setShowFactsPanel(true)}><IconExpand size={11} /> all</button>
+                      </div>
+                    </div>
+                    {friend.facts.length === 0 ? (
+                      <span className="text-xs text-muted text-sans">No facts yet</span>
+                    ) : (
+                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
+                        {friend.facts.slice(0, 4).map(fact => (
+                          <FactItem key={fact.id} fact={fact} onDelete={handleDeleteFact} deletingId={deletingFactId} accentColor={bannerColor} />
+                        ))}
+                        {friend.facts.length > 4 && (
+                          <button onClick={() => setShowFactsPanel(true)} style={{ padding: '10px 12px', background: 'none', borderRadius: 'var(--radius-sm)', border: '1px dashed var(--border)', cursor: 'pointer', color: 'var(--text-muted)', fontFamily: 'var(--font-sans)', fontSize: '0.75rem', textAlign: 'center' }}>+{friend.facts.length - 4} more</button>
+                        )}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Notes */}
+              <div style={{ borderTop: `1px solid ${bannerColor}22`, paddingTop: 'var(--space-xl)', marginBottom: 'var(--space-xl)' }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-lg)' }}>
+                  <InnerLabel accent={bannerColor}>Notes</InnerLabel>
+                  <button className="btn btn-ghost btn-sm text-sans" style={{ padding: '2px 8px', fontSize: '0.72rem' }} onClick={() => setShowNoteModal(true)}>+ add</button>
+                </div>
+                {friend.notes.length > 0 ? (
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    {friend.notes.map((note, i) => (
+                      <div key={note.id} style={{ display: 'flex', gap: 20, alignItems: 'baseline', padding: '10px 0', borderBottom: i < friend.notes.length - 1 ? `1px solid ${bannerColor}18` : 'none' }}>
+                        <span style={{ width: 72, flexShrink: 0, fontSize: '0.7rem', fontFamily: 'var(--font-sans)', color: bannerColor, opacity: 0.55 }}>{note.date}</span>
+                        <span style={{ fontFamily: 'var(--font-serif)', fontSize: '0.92rem', lineHeight: 1.6, color: 'var(--text-primary)' }}>{note.text}</span>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted font-italic">No notes yet.</p>
                 )}
               </div>
-            </div>
-          </div>
 
-          {/* Notes */}
-          <div className="section">
-            <div className="section-header">
-              <span className="section-label">Notes</span>
-              <button className="btn btn-ghost btn-sm text-sans" style={{ padding: '2px 8px', fontSize: '0.72rem' }} onClick={() => setShowNoteModal(true)}>+ add</button>
+              {/* Hangouts */}
+              {friendHangouts.length > 0 && (
+                <div style={{ borderTop: `1px solid ${bannerColor}22`, paddingTop: 'var(--space-xl)' }}>
+                  <InnerLabel accent={bannerColor} style={{ display: 'flex', marginBottom: 'var(--space-lg)' }}>Hangouts</InnerLabel>
+                  <div style={{ display: 'flex', flexDirection: 'column' }}>
+                    {friendHangouts.map((h, i) => {
+                      const hf = h.hangout_friends.find(f => f.friend_id === id)
+                      return (
+                        <Link key={h.id} to={`/hangouts/${h.id}`} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '10px 0', borderBottom: i < friendHangouts.length - 1 ? `1px solid ${bannerColor}18` : 'none', textDecoration: 'none', transition: 'opacity 0.15s' }}>
+                          <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-md)', background: `${bannerColor}14`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '0.6rem', fontFamily: 'var(--font-sans)', fontWeight: 700, color: bannerColor, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{h.type.slice(0, 3)}</div>
+                          <div style={{ flex: 1 }}>
+                            <div style={{ fontSize: '0.88rem', fontWeight: 500, color: 'var(--text-primary)', fontFamily: 'var(--font-sans)' }}>{h.type}{h.location ? ` — ${h.location}` : ''}</div>
+                            <div className="text-xs text-muted text-sans">{h.date}</div>
+                          </div>
+                          {hf?.feeling_label && <span className="pill pill-default">{hf.feeling_label}</span>}
+                        </Link>
+                      )
+                    })}
+                  </div>
+                </div>
+              )}
             </div>
-            {friend.notes.length > 0 ? (
-              <div className="card">
-                <div className="flex flex-col" style={{ gap: '10px' }}>
-                  {friend.notes.map(note => (
-                    <div key={note.id} className="flex gap-md items-start" style={{ fontSize: '0.88rem' }}>
-                      <span className="text-muted text-sans" style={{ width: '80px', flexShrink: 0, fontSize: '0.72rem', paddingTop: '3px' }}>{note.date}</span>
-                      <span>{note.text}</span>
+          )}
+
+          {/* IMPRESSIONS */}
+          {activeTab === 'impressions' && (
+            <div className="animate-in">
+              <button className="btn btn-default" onClick={() => setShowImpressionModal(true)} style={{ marginBottom: 'var(--space-lg)' }}>Write an impression</button>
+              {impressions.length > 0 ? impressions.map(imp => (
+                <div key={imp.id} className="impression" style={{ borderLeftColor: bannerColor }}>
+                  <div className="impression-title">{imp.title}</div>
+                  <div className="impression-date">{imp.date}</div>
+                  <div className="impression-body">{imp.body}</div>
+                </div>
+              )) : (
+                <div className="empty-state"><p>No impressions yet. Write one — it's just for you.</p></div>
+              )}
+            </div>
+          )}
+
+          {/* GALLERY */}
+          {activeTab === 'gallery' && (
+            <div className="animate-in">
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--space-lg)' }}>
+                <InnerLabel accent={bannerColor}>Photos</InnerLabel>
+                <button className="btn btn-default btn-sm" onClick={() => galleryInputRef.current?.click()} disabled={galleryUploading}>
+                  {galleryUploading ? 'Uploading…' : '+ Add photos'}
+                </button>
+              </div>
+              <input ref={galleryInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={async e => { const files = Array.from(e.target.files ?? []); for (const file of files) await uploadPhoto(file); e.target.value = '' }} />
+              {galleryImages.length > 0 ? (
+                <div className="gallery-grid">
+                  {galleryImages.map((img, i) => (
+                    <div key={img.id} className="gallery-item" style={{ cursor: 'pointer' }} onClick={() => setLightboxIdx(i)}>
+                      <img src={img.url} alt={img.caption ?? ''} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                     </div>
                   ))}
                 </div>
-              </div>
-            ) : (
-              <p className="text-sm text-muted font-italic">No notes yet.</p>
-            )}
-          </div>
+              ) : (
+                <div className="empty-state"><p>No photos yet. Add some memories.</p></div>
+              )}
+              {lightboxIdx !== null && (
+                <div className="lightbox-backdrop" onClick={() => setLightboxIdx(null)}>
+                  {/* Close */}
+                  <button className="lightbox-btn" style={{ position: 'absolute', top: 20, right: 20 }} onClick={() => setLightboxIdx(null)}>×</button>
 
-          {/* Hangouts */}
-          {friendHangouts.length > 0 && (
-            <div className="section">
-              <div className="section-header"><span className="section-label">Hangouts</span></div>
-              <div className="flex flex-col gap-sm">
-                {friendHangouts.map(h => {
-                  const hf = h.hangout_friends.find(f => f.friend_id === id)
-                  return (
-                    <Link key={h.id} to={`/hangouts/${h.id}`} className="hangout-row" style={{ padding: 'var(--space-md)' }}>
-                      <div className="hangout-type-badge" style={{ width: 36, height: 36, fontSize: '0.6rem' }}>{h.type.slice(0, 3)}</div>
-                      <div style={{ flex: 1 }}>
-                        <div style={{ fontSize: '0.88rem', fontWeight: 500 }}>{h.type} — {h.location}</div>
-                        <div className="text-xs text-muted text-sans">{h.date}</div>
-                      </div>
-                      {hf?.feeling_label && <span className="pill pill-default">{hf.feeling_label}</span>}
-                    </Link>
-                  )
-                })}
+                  {/* Image */}
+                  <img
+                    src={galleryImages[lightboxIdx].url}
+                    alt=""
+                    className="lightbox-img"
+                    onClick={e => e.stopPropagation()}
+                  />
+
+                  {/* Prev */}
+                  {lightboxIdx > 0 && (
+                    <button className="lightbox-btn lightbox-nav lightbox-prev" onClick={e => { e.stopPropagation(); setLightboxIdx(i => i! - 1) }}>‹</button>
+                  )}
+                  {/* Next */}
+                  {lightboxIdx < galleryImages.length - 1 && (
+                    <button className="lightbox-btn lightbox-nav lightbox-next" onClick={e => { e.stopPropagation(); setLightboxIdx(i => i! + 1) }}>›</button>
+                  )}
+
+                  {/* Footer: counter + delete */}
+                  <div style={{ position: 'absolute', bottom: 24, left: '50%', transform: 'translateX(-50%)', display: 'flex', alignItems: 'center', gap: 16 }}>
+                    <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'rgba(255,255,255,0.5)' }}>{lightboxIdx + 1} / {galleryImages.length}</span>
+                    <button className="lightbox-btn" style={{ fontSize: '0.72rem', padding: '5px 12px', borderRadius: 'var(--radius-full)', height: 'auto', width: 'auto', color: 'rgba(255,255,255,0.6)' }}
+                      onClick={async e => { e.stopPropagation(); await deleteImage(galleryImages[lightboxIdx!].id); setLightboxIdx(null) }}>
+                      Delete
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* GIFTS */}
+          {activeTab === 'gifts' && (
+            <div className="animate-in">
+              <Link to={`/ai/gifts/${friend.id}`} className="btn btn-ai" style={{ marginBottom: 'var(--space-xl)' }}>AI gift suggestions</Link>
+              <div style={{ borderTop: `1px solid ${bannerColor}22`, paddingTop: 'var(--space-xl)' }}>
+                <InnerLabel accent={bannerColor} style={{ display: 'flex', marginBottom: 'var(--space-lg)' }}>Gift history</InnerLabel>
+                <div className="empty-state"><p>No gifts logged yet.</p></div>
               </div>
             </div>
           )}
-        </div>
-      )}
 
-      {/* ═══ IMPRESSIONS TAB ═══ */}
-      {activeTab === 'impressions' && (
-        <div className="animate-in">
-          <button className="btn btn-default" onClick={() => setShowImpressionModal(true)} style={{ marginBottom: 'var(--space-lg)' }}>Write an impression</button>
-          {impressions.length > 0 ? impressions.map(imp => (
-            <div key={imp.id} className="impression">
-              <div className="impression-title">{imp.title}</div>
-              <div className="impression-date">{imp.date}</div>
-              <div className="impression-body">{imp.body}</div>
-            </div>
-          )) : (
-            <div className="empty-state"><p>No impressions yet. Write one — it's just for you.</p></div>
-          )}
-        </div>
-      )}
-
-      {/* ═══ GALLERY TAB ═══ */}
-      {activeTab === 'gallery' && (
-        <div className="animate-in">
-          <button className="btn btn-default" style={{ marginBottom: 'var(--space-lg)' }}>Add photos</button>
-          <div className="empty-state"><p>No photos yet. Add some memories.</p></div>
-        </div>
-      )}
-
-      {/* ═══ GIFTS TAB ═══ */}
-      {activeTab === 'gifts' && (
-        <div className="animate-in">
-          <Link to={`/ai/gifts/${friend.id}`} className="btn btn-ai" style={{ marginBottom: 'var(--space-lg)' }}>AI gift suggestions</Link>
-          <div className="section">
-            <div className="section-header"><span className="section-label-sm">Gift history</span></div>
-            <div className="empty-state"><p>No gifts logged yet.</p></div>
-          </div>
-        </div>
-      )}
+        </div>{/* end tab content */}
+      </div>{/* end unified card */}
 
       {/* ═══ MODALS ═══ */}
 
@@ -714,8 +788,8 @@ export default function FriendProfile() {
             onClick={() => { setShowEditInfo(false); setShowDeleteConfirm(true) }}
             style={{
               width: '100%', padding: '8px', borderRadius: 'var(--radius-md)',
-              border: '1px solid var(--border)', background: 'transparent',
-              color: 'var(--text-muted)', fontFamily: 'var(--font-sans)', fontSize: '0.75rem',
+              border: '1px solid var(--negative)', background: 'transparent',
+              color: 'var(--negative)', fontFamily: 'var(--font-sans)', fontSize: '0.75rem',
               cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
               transition: 'all 0.15s',
             }}
@@ -781,7 +855,15 @@ export default function FriendProfile() {
         </div>
         <div className="modal-actions">
           <button className="btn btn-ghost" onClick={() => setShowCustomize(false)}>Cancel</button>
-          <button className="btn btn-primary" onClick={() => setShowCustomize(false)}>Apply</button>
+          <button className="btn btn-primary" onClick={async () => {
+            if (user && id) {
+              await supabase.from('profile_customizations').upsert(
+                { user_id: user.id, friend_id: id, theme_color: themeColor, font: profileFont, effect },
+                { onConflict: 'user_id,friend_id' }
+              )
+            }
+            setShowCustomize(false)
+          }}>Apply</button>
         </div>
       </Modal>
 

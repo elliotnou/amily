@@ -77,6 +77,7 @@ html {
   font-size: 14px;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  overflow-y: scroll; /* always reserve scrollbar gutter — prevents layout shift between tabs */
 }
 
 body {
@@ -97,11 +98,15 @@ img { display: block; max-width: 100%; }
 .app-layout {
   display: flex;
   min-height: 100vh;
+  --sidebar-w: 260px;
+}
+.app-layout.sidebar-collapsed {
+  --sidebar-w: 60px;
 }
 
 /* ── Sidebar ── */
 .sidebar {
-  width: 260px;
+  width: var(--sidebar-w);
   min-height: 100vh;
   background: var(--bg-card);
   border-right: 1px solid var(--border);
@@ -110,9 +115,24 @@ img { display: block; max-width: 100%; }
   top: 0;
   left: 0;
   overflow-y: auto;
+  overflow-x: hidden;
   z-index: 100;
   display: flex;
   flex-direction: column;
+}
+.sidebar-ready .sidebar {
+  transition: width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.sidebar--collapsed .sidebar-nav {
+  padding: 0 6px;
+}
+.sidebar--collapsed .sidebar-link {
+  justify-content: center;
+  padding: 10px 0;
+}
+.sidebar--collapsed .sidebar-link .link-icon {
+  opacity: 0.6;
 }
 
 .sidebar-logo {
@@ -246,11 +266,14 @@ img { display: block; max-width: 100%; }
 
 /* ── Main content ── */
 .main-content {
-  margin-left: 260px;
+  margin-left: var(--sidebar-w);
   flex: 1;
   min-height: 100vh;
   padding: var(--space-xl) var(--space-xl);
-  max-width: calc(100% - 260px);
+  max-width: calc(100% - var(--sidebar-w));
+}
+.sidebar-ready .main-content {
+  transition: margin-left 0.25s cubic-bezier(0.4, 0, 0.2, 1), max-width 0.25s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
 .page-container {
@@ -1042,6 +1065,79 @@ img { display: block; max-width: 100%; }
 .hangout-row:hover {
   box-shadow: var(--shadow-md);
   border-color: var(--border-strong);
+}
+
+/* ── Lightbox ── */
+@keyframes lightbox-in {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+@keyframes lightbox-img-in {
+  from { opacity: 0; transform: scale(0.96); }
+  to   { opacity: 1; transform: scale(1); }
+}
+
+.lightbox-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 300;
+  background: rgba(0, 0, 0, 0.90);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  animation: lightbox-in 0.18s ease;
+  backdrop-filter: blur(4px);
+  -webkit-backdrop-filter: blur(4px);
+}
+
+.lightbox-img {
+  max-width: min(88vw, 1100px);
+  max-height: 86vh;
+  object-fit: contain;
+  border-radius: 6px;
+  box-shadow: 0 32px 80px rgba(0,0,0,0.5);
+  animation: lightbox-img-in 0.22s ease;
+}
+
+.lightbox-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.12);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  color: rgba(255, 255, 255, 0.85);
+  font-size: 1.3rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s;
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  line-height: 1;
+}
+.lightbox-btn:hover {
+  background: rgba(255, 255, 255, 0.22);
+}
+
+.lightbox-nav {
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 48px;
+  height: 48px;
+  font-size: 1.5rem;
+}
+.lightbox-prev { left: 24px; }
+.lightbox-next { right: 24px; }
+
+/* ── Hangout card (grid view) ── */
+.hangout-card-link {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+.hangout-card-link:hover {
+  transform: translateY(-4px);
+  box-shadow: 0 16px 40px rgba(0,0,0,0.14), 0 4px 12px rgba(0,0,0,0.08) !important;
 }
 
 .hangout-type-badge {

@@ -1,14 +1,31 @@
+import { useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
+import { supabase } from '../lib/supabase'
 import { LogoIcon } from '../components/Icons'
 
 export default function Settings() {
   const { user, signOut } = useAuth()
   const navigate = useNavigate()
 
+  const [editingName, setEditingName] = useState(false)
+  const [nameValue, setNameValue] = useState(user?.user_metadata?.display_name || '')
+  const [savingName, setSavingName] = useState(false)
+  const [nameSaved, setNameSaved] = useState(false)
+
   const handleSignOut = async () => {
     await signOut()
     navigate('/')
+  }
+
+  const handleSaveName = async () => {
+    if (!nameValue.trim()) return
+    setSavingName(true)
+    await supabase.auth.updateUser({ data: { display_name: nameValue.trim() } })
+    setSavingName(false)
+    setEditingName(false)
+    setNameSaved(true)
+    setTimeout(() => setNameSaved(false), 2000)
   }
 
   return (
@@ -23,44 +40,67 @@ export default function Settings() {
         <div className="section-header">
           <span className="section-label">Account</span>
         </div>
-        <div className="card">
-          <div className="flex items-center gap-md" style={{ marginBottom: 'var(--space-lg)' }}>
-            <div style={{
-              width: 44, height: 44, borderRadius: 12,
-              background: 'var(--text)', display: 'flex', alignItems: 'center',
-              justifyContent: 'center', color: 'white', flexShrink: 0,
-            }}>
-              <LogoIcon size={26} />
-            </div>
-            <div>
-              <div style={{ fontWeight: 500, fontSize: '0.95rem' }}>{user?.user_metadata?.display_name || 'Your account'}</div>
-              <div className="text-sm text-muted text-sans">{user?.email}</div>
-            </div>
+        <div className="card" style={{ padding: 'var(--space-lg)' }}>
+          {/* Display name row */}
+          <div style={{ marginBottom: 'var(--space-lg)', paddingBottom: 'var(--space-lg)', borderBottom: '1px solid var(--border)' }}>
+            <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 10 }}>Display name</div>
+            {editingName ? (
+              <div style={{ display: 'flex', gap: 8 }}>
+                <input
+                  autoFocus
+                  className="form-input"
+                  value={nameValue}
+                  onChange={e => setNameValue(e.target.value)}
+                  onKeyDown={e => { if (e.key === 'Enter') handleSaveName(); if (e.key === 'Escape') setEditingName(false) }}
+                  placeholder="Your name"
+                  style={{ flex: 1, fontFamily: 'var(--font-serif)', fontSize: '1rem' }}
+                />
+                <button className="btn btn-primary btn-sm" onClick={handleSaveName} disabled={savingName || !nameValue.trim()}>
+                  {savingName ? 'Saving…' : 'Save'}
+                </button>
+                <button className="btn btn-ghost btn-sm" onClick={() => { setEditingName(false); setNameValue(user?.user_metadata?.display_name || '') }}>
+                  Cancel
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <span style={{ fontFamily: 'var(--font-serif)', fontSize: '1.05rem', color: 'var(--text)' }}>
+                  {user?.user_metadata?.display_name || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic' }}>Not set</span>}
+                </span>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  {nameSaved && <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.72rem', color: 'var(--positive)' }}>Saved ✓</span>}
+                  <button className="btn btn-ghost btn-sm text-sans" style={{ fontSize: '0.75rem' }} onClick={() => setEditingName(true)}>Edit</button>
+                </div>
+              </div>
+            )}
           </div>
 
-          <div style={{ borderTop: '1px solid var(--border)', paddingTop: 'var(--space-lg)' }}>
-            <button
-              onClick={handleSignOut}
-              style={{
-                width: '100%',
-                padding: '10px 16px',
-                borderRadius: 'var(--radius-md)',
-                border: '1px solid var(--border)',
-                background: 'transparent',
-                cursor: 'pointer',
-                fontFamily: 'var(--font-sans)',
-                fontSize: '0.88rem',
-                fontWeight: 500,
-                color: 'var(--text)',
-                textAlign: 'left',
-                transition: 'background 150ms',
-              }}
-              onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg)')}
-              onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
-            >
-              Sign out
-            </button>
+          {/* Email row */}
+          <div style={{ marginBottom: 'var(--space-lg)', paddingBottom: 'var(--space-lg)', borderBottom: '1px solid var(--border)' }}>
+            <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.72rem', fontWeight: 600, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 8 }}>Email</div>
+            <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.88rem', color: 'var(--text-secondary)' }}>{user?.email}</span>
           </div>
+
+          {/* Sign out */}
+          <button
+            onClick={handleSignOut}
+            style={{
+              padding: '10px 16px',
+              borderRadius: 'var(--radius-md)',
+              border: '1px solid var(--border)',
+              background: 'transparent',
+              cursor: 'pointer',
+              fontFamily: 'var(--font-sans)',
+              fontSize: '0.88rem',
+              fontWeight: 500,
+              color: 'var(--text)',
+              transition: 'background 150ms',
+            }}
+            onMouseEnter={e => (e.currentTarget.style.background = 'var(--bg)')}
+            onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+          >
+            Sign out
+          </button>
         </div>
       </div>
 
@@ -79,7 +119,7 @@ export default function Settings() {
               <LogoIcon size={22} />
             </div>
             <div>
-              <div style={{ fontWeight: 500, fontFamily: 'var(--font-serif)' }}>amily</div>
+              <div style={{ fontWeight: 500, fontFamily: 'var(--font-serif)' }}>amiro</div>
               <div className="text-xs text-muted text-sans">v0.1.0</div>
             </div>
           </div>

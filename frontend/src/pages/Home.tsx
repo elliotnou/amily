@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react'
-import { Link } from 'react-router-dom'
+import { Link, Navigate } from 'react-router-dom'
 import { useFriends } from '../lib/hooks/useFriends'
 import { useHangouts } from '../lib/hooks/useHangouts'
 import { useNudges } from '../lib/hooks/useNudges'
@@ -116,7 +116,7 @@ function IconGrip({ size = 14 }: { size?: number }) {
 
 export default function Home() {
   const { user } = useAuth()
-  const { friends } = useFriends()
+  const { friends, loading: friendsLoading } = useFriends()
   const { hangouts } = useHangouts()
   const { nudges, dismissNudge } = useNudges()
   const { debts, settleDebt } = useDebts()
@@ -132,14 +132,19 @@ export default function Home() {
   const [editMode, setEditMode] = useState(false)
   const [widgets, setWidgets] = useState<WidgetConfig[]>(DEFAULT_WIDGETS)
   const [savedWidgets, setSavedWidgets] = useState<WidgetConfig[]>(DEFAULT_WIDGETS)
+  const [layoutLoaded, setLayoutLoaded] = useState(false)
   const [dragging, setDragging] = useState<WidgetId | null>(null)
   const [dragOver, setDragOver] = useState<WidgetId | null>(null)
   const [dragOverCol, setDragOverCol] = useState<WidgetCol | null>(null)
 
-  // Load layout from Supabase on mount
+  // Load layout from Supabase on mount — only render grid once loaded
   useEffect(() => {
     if (!user) return
-    loadWidgetsFromDB(user.id).then(w => { setWidgets(w); setSavedWidgets(w) })
+    loadWidgetsFromDB(user.id).then(w => {
+      setWidgets(w)
+      setSavedWidgets(w)
+      setLayoutLoaded(true)
+    })
   }, [user])
 
   const handleDragStart = useCallback((id: WidgetId) => setDragging(id), [])
@@ -249,6 +254,8 @@ export default function Home() {
     )
   }
 
+  if (!friendsLoading && friends.length === 0) return <Navigate to="/onboarding" replace />
+
   return (
     <div className="page-container">
       {/* Header */}
@@ -292,8 +299,8 @@ export default function Home() {
         </div>
       )}
 
-      {/* ── Two-column grid ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 'var(--space-md)', alignItems: 'start' }}>
+      {/* ── Two-column grid — only render once DB layout is loaded ── */}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 300px', gap: 'var(--space-md)', alignItems: 'start', opacity: layoutLoaded ? 1 : 0, transition: 'opacity 0.2s ease' }}>
         {/* LEFT column */}
         <div
           style={{ display: 'flex', flexDirection: 'column', gap: 'var(--space-md)', minHeight: editMode ? 120 : undefined }}
@@ -343,7 +350,7 @@ function StatsWidget({ friends, hangouts, longestFriend, unsettledDebts, totalOw
         <span className="stat-card-value">{hangouts.length}</span>
         <span className="stat-card-sub">total logged</span>
       </div>
-      {longestFriend && (
+      {longestFriend && longestFriend.day_count > 0 && (
         <div className="stat-card">
           <span className="stat-card-label">Longest streak</span>
           <span className="stat-card-value" style={{ fontSize: '1.6rem' }}>

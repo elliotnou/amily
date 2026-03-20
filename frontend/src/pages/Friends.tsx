@@ -1,7 +1,6 @@
 import { useState } from 'react'
 import { Link } from 'react-router-dom'
 import { useFriends } from '../lib/hooks/useFriends'
-import { tierLabel } from '../data/mock'
 import AddFriendFlow from '../components/AddFriendFlow'
 import type { AddFriendPayload } from '../components/AddFriendFlow'
 import { IconSearch, IconUserPlus, IconPlus } from '../components/Icons'
@@ -60,11 +59,6 @@ export default function Friends() {
                 ) : (
                   <span className="avatar-initials">{f.initials}</span>
                 )}
-                <div className="friend-card-tier">
-                  <span className={`pill pill-${f.tier}`} style={{ fontSize: '0.65rem', padding: '2px 8px' }}>
-                    {tierLabel(f.tier)}
-                  </span>
-                </div>
               </div>
               <div className="friend-card-info">
                 <div className="friend-card-name">{f.name}</div>
