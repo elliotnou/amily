@@ -39,7 +39,7 @@ export default function Sidebar() {
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 var(--space-lg)', marginBottom: 'var(--space-xl)' }}>
             <Link to="/" className="sidebar-logo" style={{ textDecoration: 'none', marginBottom: 0, padding: 0 }}>
-              <img src="/assets/pagelogo.png" alt="amily" style={{ height: 34, objectFit: 'contain', flexShrink: 0, marginRight: -4 }} />
+              <img src="/assets/pagelogo.png" alt="amily" style={{ height: 34, objectFit: 'contain', flexShrink: 0, marginRight: -8 }} />
               amily
             </Link>
             <button onClick={toggle} title="Collapse sidebar" style={{ width: 28, height: 28, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', transition: 'background 0.15s', flexShrink: 0 }}

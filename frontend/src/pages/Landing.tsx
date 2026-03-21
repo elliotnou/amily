@@ -1,6 +1,5 @@
 import { useEffect, useRef } from 'react'
 import { Link } from 'react-router-dom'
-import { LogoIcon } from '../components/Icons'
 import { IconArrowRight } from '../components/Icons'
 import gsap from 'gsap'
 import { ScrollTrigger } from 'gsap/ScrollTrigger'
@@ -91,7 +90,7 @@ export default function Landing() {
   }, [])
 
   return (
-    <div style={{ minHeight: '100vh', background: 'var(--bg)', overflowX: 'hidden' }}>
+    <div style={{ minHeight: '100vh', background: 'var(--bg)', overflowX: 'hidden', ['--accent' as any]: '#e8705a', ['--accent-bg' as any]: 'rgba(232,112,90,0.08)' } as React.CSSProperties}>
       {/* ═══ NAV ═══ */}
       <nav style={{
         display: 'flex',
@@ -113,13 +112,9 @@ export default function Landing() {
           fontWeight: 500,
           display: 'flex',
           alignItems: 'center',
-          gap: 10,
+          gap: 4,
         }}>
-          <div style={{
-            width: 30, height: 30, borderRadius: 9,
-            background: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-            color: 'white',
-          }}><LogoIcon size={18} /></div>
+          <img src="/assets/pagelogo.png" alt="amily" style={{ height: 32, objectFit: 'contain', opacity: 0.7 }} />
           amily
         </div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -329,7 +324,7 @@ export default function Landing() {
           }}>
             {/* Fake nav bar */}
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 24 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--text)' }} />
+              <div style={{ width: 28, height: 28, borderRadius: 8, background: '#e8705a' }} />
               <div style={{ width: 80, height: 10, borderRadius: 5, background: 'var(--bg-active)' }} />
               <div style={{ flex: 1 }} />
               <div style={{ width: 60, height: 10, borderRadius: 5, background: 'var(--bg-active)' }} />
@@ -582,7 +577,7 @@ export default function Landing() {
         textAlign: 'center',
       }}>
         <div className="cta-block" style={{
-          background: 'var(--text)',
+          background: '#e8705a',
           borderRadius: 'var(--radius-xl)',
           padding: '56px 40px',
           color: 'white',

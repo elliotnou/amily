@@ -676,8 +676,8 @@ export default function Hangouts() {
         </div>
 
         <div className="form-group">
-          <label className="form-label">Highlights</label>
-          <textarea className="form-textarea" placeholder="What stood out?" value={hHighlights} onChange={e => setHHighlights(e.target.value)} />
+          <label className="form-label">How did it go?</label>
+          <textarea className="form-textarea" placeholder="Write about the experience — what happened, how it felt, what you talked about…" value={hHighlights} onChange={e => setHHighlights(e.target.value)} />
         </div>
 
         <div className="modal-actions">

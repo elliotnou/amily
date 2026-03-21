@@ -87,7 +87,7 @@ function InnerLabel({ children, style, accent, fontFamily }: { children: React.R
 export default function FriendProfile() {
   const { id } = useParams()
   const navigate = useNavigate()
-  const { friend, loading, addFact, deleteFact, addNote, upsertContact, updateFriend } = useFriend(id)
+  const { friend, loading, addFact, deleteFact, addNote, deleteNote, upsertContact, updateFriend } = useFriend(id)
   const { deleteFriend } = useFriends()
   const { impressions, createImpression, deleteImpression } = useImpressions(id)
   const { hangouts } = useHangouts()
@@ -287,7 +287,7 @@ export default function FriendProfile() {
   })
 
   const handleSaveFact = async () => {
-    const cat = factCategory === '__custom' ? factCustomCat : factCategory
+    const cat = factCategory === 'Other' ? factCustomCat : factCategory
     if (!cat || !factValue) return
     setSavingFact(true)
     await addFact(cat, factValue)
@@ -561,9 +561,11 @@ export default function FriendProfile() {
                 {friend.notes.length > 0 ? (
                   <div style={{ display: 'flex', flexDirection: 'column' }}>
                     {friend.notes.map((note, i) => (
-                      <div key={note.id} style={{ display: 'flex', gap: 20, alignItems: 'baseline', padding: '10px 0', borderBottom: i < friend.notes.length - 1 ? `1px solid ${bannerColor}18` : 'none' }}>
+                      <div key={note.id} className="pencil-row" style={{ display: 'flex', gap: 20, alignItems: 'baseline', padding: '10px 0', borderBottom: i < friend.notes.length - 1 ? `1px solid ${bannerColor}18` : 'none' }}>
                         <span style={{ width: 72, flexShrink: 0, fontSize: '0.72rem', fontFamily: 'var(--font-sans)', color: bannerColor, opacity: 0.8 }}>{note.date}</span>
-                        <span style={{ fontFamily: 'var(--font-serif)', fontSize: '0.92rem', lineHeight: 1.6, color: 'var(--text-primary)' }}>{note.text}</span>
+                        <span style={{ fontFamily: 'var(--font-serif)', fontSize: '0.92rem', lineHeight: 1.6, color: 'var(--text-primary)', flex: 1 }}>{note.text}</span>
+                        <button onClick={() => deleteNote(note.id)} style={{ opacity: 0, background: 'none', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1rem', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'opacity 0.15s' }}
+                          className="note-delete-btn">×</button>
                       </div>
                     ))}
                   </div>
