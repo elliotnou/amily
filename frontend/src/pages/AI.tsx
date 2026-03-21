@@ -112,7 +112,7 @@ function AIResponse({ text, status, error, regenerate }: {
       {status === 'loading' && (
         <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '24px 0', background: 'var(--bg)', borderRadius: 'var(--radius-xl)' }}>
           <img
-            src="/loading.gif"
+            src="/assets/loading.gif"
             alt="Generating…"
             style={{ width: 160, height: 160, objectFit: 'contain', mixBlendMode: 'multiply', filter: 'brightness(1.08)' }}
           />

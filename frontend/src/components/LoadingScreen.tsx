@@ -10,7 +10,7 @@ export default function LoadingScreen() {
       gap: 'var(--space-lg)',
     }}>
       <img
-        src="/loading.gif"
+        src="/assets/loading.gif"
         alt="Loading…"
         style={{
           width: 160,
