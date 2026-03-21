@@ -1,5 +1,5 @@
 import { NavLink, Link } from 'react-router-dom'
-import { IconHome, IconUsers, IconCalendar, IconChart, IconSparkle, IconSettings, IconGroups, LogoIcon } from './Icons'
+import { IconHome, IconUsers, IconCalendar, IconChart, IconSparkle, IconSettings, IconGroups } from './Icons'
 import { useSidebar } from '../lib/SidebarContext'
 import { useSubscription } from '../lib/hooks/useSubscription'
 
@@ -33,17 +33,13 @@ export default function Sidebar() {
         {collapsed ? (
           <div style={{ display: 'flex', justifyContent: 'center', marginBottom: 'var(--space-xl)', padding: '0 var(--space-sm)' }}>
             <Link to="/" style={{ textDecoration: 'none', display: 'flex' }}>
-              <div style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
-                <LogoIcon size={18} />
-              </div>
+              <img src="/pagelogo.png" alt="amily" style={{ width: 34, height: 34, objectFit: 'contain' }} />
             </Link>
           </div>
         ) : (
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 var(--space-lg)', marginBottom: 'var(--space-xl)' }}>
             <Link to="/" className="sidebar-logo" style={{ textDecoration: 'none', marginBottom: 0, padding: 0 }}>
-              <div style={{ width: 28, height: 28, borderRadius: 8, background: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white', flexShrink: 0 }}>
-                <LogoIcon size={18} />
-              </div>
+              <img src="/pagelogo.png" alt="amily" style={{ height: 34, objectFit: 'contain', flexShrink: 0, marginRight: -4 }} />
               amily
             </Link>
             <button onClick={toggle} title="Collapse sidebar" style={{ width: 28, height: 28, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', transition: 'background 0.15s', flexShrink: 0 }}

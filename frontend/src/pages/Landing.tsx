@@ -195,14 +195,11 @@ export default function Landing() {
         </p>
 
         <div className="hero-buttons" style={{ display: 'flex', gap: 12, justifyContent: 'center', flexWrap: 'wrap' }}>
-          <Link to="/login" className="btn btn-primary" style={{ padding: '14px 32px', fontSize: '1rem' }}>
+          <Link to="/login" className="btn btn-primary" style={{ padding: '14px 32px', fontSize: '1rem', borderRadius: 'var(--radius-full)' }}>
             Get started — it's free <IconArrowRight size={16} />
           </Link>
           <Link to="/login" className="btn btn-default" style={{ padding: '14px 32px', fontSize: '1rem', borderRadius: 'var(--radius-full)' }}>
             Log in
-          </Link>
-          <Link to="/onboarding" className="btn btn-ghost" style={{ padding: '14px 24px', fontSize: '0.85rem', opacity: 0.6 }}>
-            Preview (no login)
           </Link>
         </div>
       </section>
