@@ -89,7 +89,7 @@ export default function FriendProfile() {
   const navigate = useNavigate()
   const { friend, loading, addFact, deleteFact, addNote, deleteNote, upsertContact, updateFriend } = useFriend(id)
   const { deleteFriend } = useFriends()
-  const { impressions, createImpression, deleteImpression } = useImpressions(id)
+  const { impressions, createImpression, updateImpression, deleteImpression } = useImpressions(id)
   const { hangouts } = useHangouts()
   const { status: subStatus } = useSubscription()
   const [activeTab, setActiveTab] = useState<Tab>('overview')
@@ -111,6 +111,7 @@ export default function FriendProfile() {
   const [showCustomize, setShowCustomize] = useState(false) // ← style only
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false)
   const [deleteNameInput, setDeleteNameInput] = useState('')
+  const [showRadarHelp, setShowRadarHelp] = useState(false)
 
   const { user } = useAuth()
   const { images: galleryImages, uploading: galleryUploading, uploadPhoto, deleteImage } = useGallery(id)
@@ -153,7 +154,7 @@ export default function FriendProfile() {
   const [interestInput, setInterestInput] = useState('')
   const [showInterestInput, setShowInterestInput] = useState(false)
   const editPhotoRef = useRef<HTMLInputElement>(null)
-  const factsPanelMousedown = useRef(false)
+
 
   const openEditInfo = () => {
     if (!friend) return
@@ -214,6 +215,13 @@ export default function FriendProfile() {
   const [openImpressionId, setOpenImpressionId] = useState<string | null>(null)
   const [confirmDeleteImpId, setConfirmDeleteImpId] = useState<string | null>(null)
   const [savingImp, setSavingImp] = useState(false)
+  const [editingImp, setEditingImp] = useState(false)
+  const [editImpTitle, setEditImpTitle] = useState('')
+  const [editImpBody, setEditImpBody] = useState('')
+  const [impSearch, setImpSearch] = useState('')
+  const [showStoryVibes, setShowStoryVibes] = useState(false)
+  const [showAllInterests, setShowAllInterests] = useState(false)
+  const interestsRef = useRef<string[]>([])
 
   // ── Contact modal state ──
   const contactRef = {
@@ -238,6 +246,25 @@ export default function FriendProfile() {
 
   // ── Freshness ring: days since last hangout ──
   const friendHangouts = hangouts.filter(h => h.hangout_friends.some(hf => hf.friend_id === id))
+
+  // ── Hangout banner images (first photo per hangout) ──
+  const [hangoutBanners, setHangoutBanners] = useState<Record<string, string>>({})
+  useEffect(() => {
+    if (friendHangouts.length === 0) return
+    const ids = friendHangouts.map(h => h.id)
+    supabase
+      .from('gallery_images')
+      .select('hangout_id, url')
+      .in('hangout_id', ids)
+      .order('created_at', { ascending: true })
+      .then(({ data }) => {
+        const map: Record<string, string> = {}
+        for (const img of (data ?? [])) {
+          if (img.hangout_id && !map[img.hangout_id]) map[img.hangout_id] = img.url
+        }
+        setHangoutBanners(map)
+      })
+  }, [friendHangouts.map(h => h.id).join(',')]) // eslint-disable-line react-hooks/exhaustive-deps
   const lastHangoutDate = friendHangouts.length > 0
     ? [...friendHangouts].sort((a, b) => b.date.localeCompare(a.date))[0].date
     : null
@@ -250,23 +277,34 @@ export default function FriendProfile() {
 
   const tabs: Tab[] = ['overview', 'impressions', 'gallery', 'gifts', 'ai']
 
-  const friendContext = friend ? buildFriendContext(friend, friendHangouts) : ''
+  const friendContext = friend ? buildFriendContext(friend, friendHangouts, impressions) : ''
 
-  const handleChatSend = async () => {
-    if (!chatInput.trim() || chatLoading) return
-    const question = chatInput.trim()
-    const history = chatMessages.map(m => `${m.role === 'user' ? 'You' : 'Assistant'}: ${m.text}`).join('\n')
-    setChatMessages(prev => [...prev, { role: 'user', text: question }])
+  const sendAIMessage = async (userLabel: string, prompt: string) => {
+    if (chatLoading) return
+    setChatMessages(prev => [...prev, { role: 'user', text: userLabel }])
     setChatInput('')
     setChatLoading(true)
     try {
-      const answer = await callAI(PROMPTS.friendQuery(friendContext, history, question))
+      const answer = await callAI(prompt)
       setChatMessages(prev => [...prev, { role: 'assistant', text: answer }])
     } catch (e: any) {
       setChatMessages(prev => [...prev, { role: 'assistant', text: e.message === 'upgrade_required' ? '__upgrade__' : 'Something went wrong. Try again.' }])
     }
     setChatLoading(false)
     setTimeout(() => chatBottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50)
+  }
+
+  const handleChatSend = async () => {
+    if (!chatInput.trim() || chatLoading) return
+    const question = chatInput.trim()
+    const history = chatMessages.map(m => `${m.role === 'user' ? 'You' : 'Assistant'}: ${m.text}`).join('\n')
+    sendAIMessage(question, PROMPTS.friendQuery(friendContext, history, question))
+  }
+
+  const handleQuickAction = (action: string, vibe?: string) => {
+    if (action === 'gifts') sendAIMessage('Give me gift ideas', PROMPTS.giftIdeas(friendContext))
+    else if (action === 'hangouts') sendAIMessage('Suggest hangout ideas', PROMPTS.hangoutIdeas(friendContext))
+    else if (action === 'story') sendAIMessage(`Write our friendship story (${vibe || 'Wholesome'})`, PROMPTS.friendshipStory(friendContext, vibe || 'Wholesome'))
   }
   const freshness = daysSinceContact != null
     ? Math.max(5, 100 - Math.floor(daysSinceContact / 4))
@@ -279,7 +317,7 @@ export default function FriendProfile() {
 
   const radarScores = computeRadarScores({
     hangouts: friendHangouts.map(h => ({ date: h.date })),
-    hangoutCount: friend.hangout_count,
+    hangoutCount: friendHangouts.length,
     noteCount: friend.notes.length,
     impressionCount: impressions.length,
     factCount: friend.facts.length,
@@ -396,10 +434,21 @@ export default function FriendProfile() {
                 {[
                   { label: tierLabel(friend.tier) },
                   { label: `day ${computedDayCount.toLocaleString()}`, serif: true },
-                  friend.birthday ? { label: friend.birthday } : null,
+                  friend.birthday ? { label: friend.birthday, birthday: true } : null,
                   friend.ai_label ? { label: friend.ai_label, bold: true } : null,
                 ].filter(Boolean).map((badge, i) => (
-                  <span key={i} style={{ padding: '3px 10px', borderRadius: 'var(--radius-full)', background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.22)', fontSize: '0.7rem', fontFamily: badge!.serif ? 'var(--font-serif)' : 'var(--font-sans)', fontWeight: badge!.bold ? 600 : 500, fontStyle: badge!.serif ? 'italic' : 'normal', color: 'white' }}>{badge!.label}</span>
+                  <span key={i} style={{ padding: '3px 10px', borderRadius: 'var(--radius-full)', background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.22)', fontSize: '0.7rem', fontFamily: badge!.serif ? 'var(--font-serif)' : 'var(--font-sans)', fontWeight: badge!.bold ? 600 : 500, fontStyle: badge!.serif ? 'italic' : 'normal', color: 'white', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                    {badge!.birthday && (
+                      <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                        <path d="M20 21v-8a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8" />
+                        <path d="M4 16s.5-1 2-1 2.5 2 4 2 2.5-2 4-2 2.5 2 4 2 2-1 2-1" />
+                        <path d="M2 21h20" />
+                        <path d="M7 8v2" /><path d="M12 8v2" /><path d="M17 8v2" />
+                        <path d="M7 4l.5 2" /><path d="M12 4v2" /><path d="M17 4l-.5 2" />
+                      </svg>
+                    )}
+                    {badge!.label}
+                  </span>
                 ))}
               </div>
             </div>
@@ -440,12 +489,6 @@ export default function FriendProfile() {
           {/* OVERVIEW */}
           {activeTab === 'overview' && (
             <div className="animate-in">
-              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap', marginBottom: 'var(--space-xl)' }}>
-                <Link to={`/ai/gifts/${friend.id}`} className="btn btn-ai btn-sm">Gift ideas</Link>
-                <Link to={`/ai/hangout-ideas/${friend.id}`} className="btn btn-ai btn-sm">Hangout ideas</Link>
-                <Link to={`/ai/story/${friend.id}`} className="btn btn-ai btn-sm">Friendship story</Link>
-              </div>
-
               {/* ── Two-column info layout ── */}
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '0 48px', marginBottom: 'var(--space-xl)' }}>
 
@@ -463,30 +506,44 @@ export default function FriendProfile() {
                       <InnerLabel accent={bannerColor} fontFamily={fontFamily}>Interests</InnerLabel>
                       <button className="btn btn-ghost btn-sm text-sans" style={{ padding: '2px 6px', fontSize: '0.68rem' }} onClick={() => setShowInterestInput(v => !v)}>+ add</button>
                     </div>
-                    <div className="pill-wrap" style={{ marginTop: 8 }}>
-                      {friend.interests.map(i => (
-                        <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 'var(--radius-full)', background: `${bannerColor}18`, border: `1px solid ${bannerColor}40`, color: bannerColor, fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 500 }}>
-                          {i}
-                          <button onClick={() => updateFriend({ interests: friend.interests.filter(x => x !== i) })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', opacity: 0.55, padding: 0, lineHeight: 1, fontSize: '0.9rem', display: 'flex', alignItems: 'center' }}>×</button>
-                        </span>
-                      ))}
-                      {friend.interests.length === 0 && !showInterestInput && <span className="text-xs text-muted text-sans">None yet</span>}
-                    </div>
+                    {(() => {
+                      interestsRef.current = friend.interests
+                      const shown = friend.interests.slice(0, 5)
+                      const overflow = friend.interests.length - 5
+                      return (
+                        <div className="pill-wrap" style={{ marginTop: 8 }}>
+                          {shown.map(i => (
+                            <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 'var(--radius-full)', background: `${bannerColor}18`, border: `1px solid ${bannerColor}40`, color: bannerColor, fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 500 }}>
+                              {i}
+                              <button onClick={() => updateFriend({ interests: interestsRef.current.filter(x => x !== i) })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', opacity: 0.55, padding: 0, lineHeight: 1, fontSize: '0.9rem', display: 'flex', alignItems: 'center' }}>×</button>
+                            </span>
+                          ))}
+                          {overflow > 0 && (
+                            <button onClick={() => setShowAllInterests(true)} style={{ display: 'inline-flex', alignItems: 'center', padding: '3px 10px', borderRadius: 'var(--radius-full)', background: 'var(--bg-hover)', border: '1px solid var(--border)', color: 'var(--text-muted)', fontFamily: 'var(--font-sans)', fontSize: '0.75rem', cursor: 'pointer' }}>+{overflow} more</button>
+                          )}
+                          {friend.interests.length === 0 && !showInterestInput && <span className="text-xs text-muted text-sans">None yet</span>}
+                        </div>
+                      )
+                    })()}
                     {showInterestInput && (
                       <input
                         className="form-input"
                         style={{ marginTop: 8, fontSize: '0.82rem', padding: '6px 10px' }}
                         placeholder="Type and press Enter…"
                         value={interestInput}
+                        maxLength={30}
                         autoFocus
                         onChange={e => setInterestInput(e.target.value)}
                         onKeyDown={e => {
                           if (e.key === 'Enter' || e.key === ',') {
                             e.preventDefault()
-                            const val = interestInput.trim().replace(/,$/, '')
-                            if (val && !friend.interests.includes(val)) updateFriend({ interests: [...friend.interests, val] })
+                            const val = interestInput.trim().replace(/,$/, '').slice(0, 30)
+                            if (val && !interestsRef.current.includes(val)) {
+                              const next = [...interestsRef.current, val]
+                              interestsRef.current = next
+                              updateFriend({ interests: next })
+                            }
                             setInterestInput('')
-                            setShowInterestInput(false)
                           } else if (e.key === 'Escape') {
                             setInterestInput(''); setShowInterestInput(false)
                           }
@@ -523,9 +580,14 @@ export default function FriendProfile() {
                   <div style={{ marginBottom: 28, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: 4 }}>
                       <InnerLabel accent={bannerColor} fontFamily={fontFamily}>Relationship radar</InnerLabel>
+                      <button
+                        onClick={() => setShowRadarHelp(true)}
+                        style={{ width: 18, height: 18, borderRadius: '50%', border: '1.5px solid var(--border)', background: 'transparent', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--text-muted)', fontSize: '0.65rem', fontFamily: 'var(--font-sans)', fontWeight: 700, lineHeight: 1, padding: 0, flexShrink: 0 }}
+                      >?</button>
                     </div>
                     <RelationshipRadar scores={radarScores} color={bannerColor} size={200} />
                   </div>
+
 
                   {/* Facts */}
                   <div style={{ paddingTop: 20, borderTop: `1px solid ${bannerColor}22` }}>
@@ -583,9 +645,13 @@ export default function FriendProfile() {
                       const hf = h.hangout_friends.find(f => f.friend_id === id)
                       return (
                         <Link key={h.id} to={`/hangouts/${h.id}`} style={{ display: 'flex', alignItems: 'center', gap: 16, padding: '10px 0', borderBottom: i < friendHangouts.length - 1 ? `1px solid ${bannerColor}18` : 'none', textDecoration: 'none', transition: 'opacity 0.15s' }}>
-                          <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-md)', background: `${bannerColor}14`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '0.6rem', fontFamily: 'var(--font-sans)', fontWeight: 700, color: bannerColor, textTransform: 'uppercase', letterSpacing: '0.04em' }}>{h.type.slice(0, 3)}</div>
+                          <div style={{ width: 36, height: 36, borderRadius: 'var(--radius-md)', background: `${bannerColor}14`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: '0.6rem', fontFamily: 'var(--font-sans)', fontWeight: 700, color: bannerColor, textTransform: 'uppercase', letterSpacing: '0.04em', overflow: 'hidden' }}>
+                            {hangoutBanners[h.id]
+                              ? <img src={hangoutBanners[h.id]} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                              : h.type.slice(0, 3)}
+                          </div>
                           <div style={{ flex: 1 }}>
-                            <div style={{ fontSize: '0.88rem', fontWeight: 500, color: 'var(--text-primary)', fontFamily: 'var(--font-sans)' }}>{h.type}{h.location ? ` — ${h.location}` : ''}</div>
+                            <div style={{ fontSize: '0.88rem', fontWeight: 500, color: 'var(--text-primary)', fontFamily: 'var(--font-sans)' }}>{h.location ? `${h.location} — ${h.type}` : h.type}</div>
                             <div className="text-xs text-muted text-sans">{h.date}</div>
                           </div>
                           {hf?.feeling_label && <span className="pill pill-default">{hf.feeling_label}</span>}
@@ -601,8 +667,13 @@ export default function FriendProfile() {
           {/* IMPRESSIONS */}
           {activeTab === 'impressions' && (
             <div className="animate-in">
-              <button className="btn btn-default" onClick={() => setShowImpressionModal(true)} style={{ marginBottom: 'var(--space-lg)' }}>Write an impression</button>
-              {impressions.length > 0 ? impressions.map(imp => (
+              <div style={{ display: 'flex', gap: 'var(--space-sm)', marginBottom: 'var(--space-lg)' }}>
+                <button className="btn btn-default" onClick={() => setShowImpressionModal(true)}>Write an impression</button>
+                {impressions.length > 1 && (
+                  <input className="form-input" placeholder="Search impressions…" value={impSearch} onChange={e => setImpSearch(e.target.value)} style={{ flex: 1 }} />
+                )}
+              </div>
+              {impressions.length > 0 ? impressions.filter(imp => !impSearch.trim() || imp.title.toLowerCase().includes(impSearch.toLowerCase())).map(imp => (
                 <div key={imp.id} className="impression" style={{ borderLeftColor: bannerColor, cursor: 'pointer' }} onClick={() => { setOpenImpressionId(imp.id); setConfirmDeleteImpId(null) }}>
                   <div style={{ display: 'flex', alignItems: 'baseline', justifyContent: 'space-between', gap: 12 }}>
                     <div className="impression-title">{imp.title}</div>
@@ -674,7 +745,7 @@ export default function FriendProfile() {
           {/* GIFTS */}
           {activeTab === 'gifts' && (
             <div className="animate-in">
-              <Link to={`/ai/gifts/${friend.id}`} className="btn btn-ai" style={{ marginBottom: 'var(--space-xl)' }}>AI gift suggestions</Link>
+              <button className="btn btn-ai" style={{ marginBottom: 'var(--space-xl)' }} onClick={() => { setActiveTab('ai'); handleQuickAction('gifts') }}>AI gift suggestions</button>
               <div style={{ borderTop: `1px solid ${bannerColor}22`, paddingTop: 'var(--space-xl)' }}>
                 <InnerLabel accent={bannerColor} fontFamily={fontFamily} style={{ display: 'flex', marginBottom: 'var(--space-lg)' }}>Gift history</InnerLabel>
                 <div className="empty-state"><p>No gifts logged yet.</p></div>
@@ -699,8 +770,22 @@ export default function FriendProfile() {
                   {/* Messages */}
                   <div style={{ flex: 1, overflowY: 'auto', padding: '16px 0', display: 'flex', flexDirection: 'column', gap: 14 }}>
                     {chatMessages.length === 0 && (
-                      <div style={{ textAlign: 'center', padding: '32px 0', color: 'var(--text-muted)', fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '0.9rem' }}>
-                        Ask anything about {friend.name}…
+                      <div style={{ textAlign: 'center', padding: '32px 0' }}>
+                        <div style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '0.9rem', marginBottom: 20 }}>
+                          Ask anything about {friend.name}…
+                        </div>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
+                          <button className="btn btn-ai btn-sm" onClick={() => handleQuickAction('gifts')}>Gift ideas</button>
+                          <button className="btn btn-ai btn-sm" onClick={() => handleQuickAction('hangouts')}>Hangout ideas</button>
+                          <button className="btn btn-ai btn-sm" onClick={() => setShowStoryVibes(v => !v)}>Friendship story</button>
+                        </div>
+                        {showStoryVibes && (
+                          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, justifyContent: 'center', marginTop: 10 }}>
+                            {['Wholesome', 'Funny', 'Reflective', 'Epic', 'Raw'].map(v => (
+                              <button key={v} style={{ padding: '4px 12px', borderRadius: 'var(--radius-full)', border: '1px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', fontFamily: 'var(--font-sans)', fontSize: '0.72rem', cursor: 'pointer', transition: 'all 0.15s' }} onClick={() => { handleQuickAction('story', v); setShowStoryVibes(false) }}>{v}</button>
+                            ))}
+                          </div>
+                        )}
                       </div>
                     )}
                     {chatMessages.map((msg, i) => (
@@ -785,48 +870,51 @@ export default function FriendProfile() {
         </div>
       </Modal>
 
-      {/* Facts Full Panel */}
-      {showFactsPanel && (
-        <div style={{
-          position: 'fixed', inset: 0, zIndex: 200,
-          background: 'var(--bg-modal-backdrop)', display: 'flex', alignItems: 'flex-end',
-          justifyContent: 'center',
-        }} onMouseDown={(e) => { factsPanelMousedown.current = e.target === e.currentTarget }} onClick={(e) => { if (e.target === e.currentTarget && factsPanelMousedown.current) setShowFactsPanel(false) }}>
-          <div style={{
-            width: '100%', maxWidth: 640, background: 'var(--bg-card)',
-            borderRadius: 'var(--radius-xl) var(--radius-xl) 0 0',
-            padding: 'var(--space-xl)', maxHeight: '80vh', overflowY: 'auto',
-            boxShadow: 'var(--shadow-lg)',
-          }} onClick={e => e.stopPropagation()}>
-            {/* Handle */}
-            <div style={{ width: 40, height: 4, background: 'var(--border)', borderRadius: 2, margin: '0 auto var(--space-lg)' }} />
-
-            <div className="flex items-center justify-between" style={{ marginBottom: 'var(--space-lg)' }}>
-              <div>
-                <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.2rem', fontWeight: 500 }}>{friend.name}'s facts</h2>
-                <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.78rem', color: 'var(--text-muted)', marginTop: 2 }}>{friend.facts.length} {friend.facts.length === 1 ? 'fact' : 'facts'} recorded</p>
-              </div>
-              <button className="btn btn-primary btn-sm" onClick={() => { setShowFactsPanel(false); setShowFactModal(true) }}>+ Add fact</button>
+      {/* Radar Help */}
+      <Modal open={showRadarHelp} onClose={() => setShowRadarHelp(false)} title="How the radar works" style={{ overflowY: 'visible' }}>
+        {([
+          { name: 'Recency',     desc: 'How recently you hung out. Peaks at 100 within the last week, decays over time.',                                       tip: 'Log a hangout to bring this back up.' },
+          { name: 'Closeness',   desc: 'Total number of hangouts logged. Maxes out at 25+.',                                                                    tip: 'Keep logging hangouts together.' },
+          { name: 'Depth',       desc: "How much you've written about them — notes and impressions combined. Maxes at 10+ entries.",                            tip: 'Write a note or impression after your next hangout.' },
+          { name: 'Knowledge',   desc: 'Facts you\'ve recorded about them (likes, quirks, life details). Maxes at 8+ facts.',                                  tip: 'Add facts from the Overview tab.' },
+          { name: 'Consistency', desc: 'How regularly you hang out. A steady cadence scores higher than sporadic bursts.',                                      tip: 'Aim for a regular rhythm rather than gaps and clusters.' },
+          { name: 'Contact',     desc: 'How complete their contact info is — phone, email, Instagram, Twitter, LinkedIn, Snapchat.',                           tip: 'Fill in contact details from the Overview tab.' },
+        ] as const).map((item, i, arr) => (
+          <div key={item.name} style={{ marginBottom: 14, paddingBottom: 14, borderBottom: i < arr.length - 1 ? '1px solid var(--border)' : 'none' }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+              <div style={{ width: 8, height: 8, borderRadius: '50%', background: bannerColor, flexShrink: 0 }} />
+              <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 700, color: 'var(--text)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>{item.name}</span>
             </div>
-
-            {friend.facts.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: 'var(--space-2xl)', color: 'var(--text-muted)', fontFamily: 'var(--font-sans)', fontSize: '0.88rem' }}>
-                No facts yet. Add some things you know about {friend.name}.
-              </div>
-            ) : (
-              <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-                {friend.facts.map(fact => (
-                  <FactItem key={fact.id} fact={fact} onDelete={handleDeleteFact} deletingId={deletingFactId} accentColor={bannerColor} large />
-                ))}
-              </div>
-            )}
-
-            <div style={{ marginTop: 'var(--space-lg)', paddingTop: 'var(--space-lg)', borderTop: '1px solid var(--border)', textAlign: 'center' }}>
-              <button className="btn btn-ghost" onClick={() => setShowFactsPanel(false)}>Close</button>
-            </div>
+            <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.78rem', color: 'var(--text-secondary)', lineHeight: 1.55, margin: '0 0 3px 16px' }}>{item.desc}</p>
+            <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.73rem', color: bannerColor, lineHeight: 1.4, margin: '0 0 0 16px', opacity: 0.85 }}>↑ {item.tip}</p>
           </div>
+        ))}
+        <div className="modal-actions">
+          <button className="btn btn-ghost" onClick={() => setShowRadarHelp(false)}>Close</button>
         </div>
-      )}
+      </Modal>
+
+      {/* Facts Full Panel */}
+      <Modal open={showFactsPanel} onClose={() => setShowFactsPanel(false)} title={`${friend.name}'s facts`} style={{ overflowY: 'visible' }}>
+        <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.78rem', color: 'var(--text-muted)', marginBottom: 'var(--space-lg)', marginTop: -8 }}>
+          {friend.facts.length} {friend.facts.length === 1 ? 'fact' : 'facts'} recorded
+        </p>
+        {friend.facts.length === 0 ? (
+          <div style={{ textAlign: 'center', padding: 'var(--space-2xl)', color: 'var(--text-muted)', fontFamily: 'var(--font-sans)', fontSize: '0.88rem' }}>
+            No facts yet. Add some things you know about {friend.name}.
+          </div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 'var(--space-lg)' }}>
+            {friend.facts.map(fact => (
+              <FactItem key={fact.id} fact={fact} onDelete={handleDeleteFact} deletingId={deletingFactId} accentColor={bannerColor} large />
+            ))}
+          </div>
+        )}
+        <div className="modal-actions">
+          <button className="btn btn-ghost" onClick={() => setShowFactsPanel(false)}>Close</button>
+          <button className="btn btn-primary" onClick={() => { setShowFactsPanel(false); setShowFactModal(true) }}>+ Add fact</button>
+        </div>
+      </Modal>
 
       {/* Add Note */}
       <Modal open={showNoteModal} onClose={() => setShowNoteModal(false)} title="Add a note">
@@ -836,6 +924,21 @@ export default function FriendProfile() {
         <div className="modal-actions">
           <button className="btn btn-ghost" onClick={() => setShowNoteModal(false)}>Cancel</button>
           <button className="btn btn-primary" onClick={handleSaveNote} disabled={savingNote || !noteText.trim()}>{savingNote ? 'Saving…' : 'Save'}</button>
+        </div>
+      </Modal>
+
+      {/* All Interests */}
+      <Modal open={showAllInterests} onClose={() => setShowAllInterests(false)} title="Interests">
+        <div className="pill-wrap" style={{ marginBottom: 'var(--space-lg)' }}>
+          {friend.interests.map(i => (
+            <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 4, padding: '3px 10px', borderRadius: 'var(--radius-full)', background: `${bannerColor}18`, border: `1px solid ${bannerColor}40`, color: bannerColor, fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 500 }}>
+              {i}
+              <button onClick={() => updateFriend({ interests: interestsRef.current.filter(x => x !== i) })} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'inherit', opacity: 0.55, padding: 0, lineHeight: 1, fontSize: '0.9rem', display: 'flex', alignItems: 'center' }}>×</button>
+            </span>
+          ))}
+        </div>
+        <div className="modal-actions">
+          <button className="btn btn-ghost" onClick={() => setShowAllInterests(false)}>Done</button>
         </div>
       </Modal>
 
@@ -853,27 +956,53 @@ export default function FriendProfile() {
         </div>
       </Modal>
 
-      {/* ── View Impression Modal ── */}
+      {/* ── View / Edit Impression Modal ── */}
       {(() => {
         const imp = impressions.find(i => i.id === openImpressionId)
         if (!imp) return null
         const isConfirming = confirmDeleteImpId === imp.id
+        const closeModal = () => { setOpenImpressionId(null); setConfirmDeleteImpId(null); setEditingImp(false) }
         return (
-          <Modal open={true} onClose={() => { setOpenImpressionId(null); setConfirmDeleteImpId(null) }} title={imp.title}>
-            <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 'var(--space-lg)' }}>{imp.date}</p>
-            <div style={{ fontFamily: 'var(--font-serif)', fontSize: '0.97rem', lineHeight: 1.9, color: 'var(--text)', whiteSpace: 'pre-wrap', marginBottom: 'var(--space-xl)' }}>{imp.body}</div>
-            <div className="modal-actions" style={{ justifyContent: 'space-between' }}>
-              {isConfirming ? (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
-                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Delete this impression?</span>
-                  <button className="btn btn-ghost" style={{ color: '#dc2626', fontWeight: 600 }} onClick={() => { deleteImpression(imp.id); setOpenImpressionId(null); setConfirmDeleteImpId(null) }}>Yes, delete</button>
-                  <button className="btn btn-ghost" onClick={() => setConfirmDeleteImpId(null)}>Cancel</button>
+          <Modal open={true} onClose={closeModal} title={editingImp ? 'Edit impression' : imp.title}>
+            {editingImp ? (
+              <>
+                <div className="form-group">
+                  <input className="form-input" placeholder="Title (optional)" style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic' }} value={editImpTitle} onChange={e => setEditImpTitle(e.target.value)} />
                 </div>
-              ) : (
-                <button className="btn btn-ghost" style={{ color: 'var(--text-muted)' }} onClick={() => setConfirmDeleteImpId(imp.id)}>Delete</button>
-              )}
-              <button className="btn btn-ghost" onClick={() => { setOpenImpressionId(null); setConfirmDeleteImpId(null) }}>Close</button>
-            </div>
+                <div className="form-group">
+                  <textarea className="form-textarea form-textarea-serif" placeholder="Write freely..." value={editImpBody} onChange={e => setEditImpBody(e.target.value)} />
+                </div>
+                <div className="modal-actions">
+                  <button className="btn btn-ghost" onClick={() => setEditingImp(false)}>Cancel</button>
+                  <button className="btn btn-primary" disabled={savingImp || !editImpBody.trim()} onClick={async () => {
+                    setSavingImp(true)
+                    await updateImpression(imp.id, editImpTitle || 'Impression', editImpBody)
+                    setSavingImp(false)
+                    setEditingImp(false)
+                  }}>{savingImp ? 'Saving…' : 'Save'}</button>
+                </div>
+              </>
+            ) : (
+              <>
+                <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 'var(--space-lg)' }}>{imp.date}</p>
+                <div style={{ fontFamily: 'var(--font-serif)', fontSize: '0.97rem', lineHeight: 1.9, color: 'var(--text)', whiteSpace: 'pre-wrap', marginBottom: 'var(--space-xl)' }}>{imp.body}</div>
+                <div className="modal-actions" style={{ justifyContent: 'space-between' }}>
+                  {isConfirming ? (
+                    <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+                      <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.82rem', color: 'var(--text-secondary)' }}>Delete this impression?</span>
+                      <button className="btn btn-ghost" style={{ color: '#dc2626', fontWeight: 600 }} onClick={() => { deleteImpression(imp.id); closeModal() }}>Yes, delete</button>
+                      <button className="btn btn-ghost" onClick={() => setConfirmDeleteImpId(null)}>Cancel</button>
+                    </div>
+                  ) : (
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button className="btn btn-ghost" style={{ color: 'var(--text-muted)' }} onClick={() => setConfirmDeleteImpId(imp.id)}>Delete</button>
+                      <button className="btn btn-ghost" onClick={() => { setEditImpTitle(imp.title); setEditImpBody(imp.body); setEditingImp(true) }}>Edit</button>
+                    </div>
+                  )}
+                  <button className="btn btn-ghost" onClick={closeModal}>Close</button>
+                </div>
+              </>
+            )}
           </Modal>
         )
       })()}
@@ -1052,7 +1181,7 @@ export default function FriendProfile() {
       </Modal>
 
       {/* Edit Contact */}
-      <Modal open={showContactModal} onClose={() => setShowContactModal(false)} title="Edit contact info">
+      <Modal open={showContactModal} onClose={() => setShowContactModal(false)} title="Edit contact info" style={{ overflowY: 'visible' }}>
         {(['phone','email','instagram','twitter','linkedin','snapchat'] as const).map(field => (
           <div key={field} className="form-group">
             <label className="form-label">{field.charAt(0).toUpperCase() + field.slice(1)}</label>

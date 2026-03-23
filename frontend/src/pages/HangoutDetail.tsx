@@ -60,7 +60,7 @@ function InlineSave({ onSave, onCancel, saving }: { onSave: () => void; onCancel
   )
 }
 
-type Section = 'header' | 'journal' | 'friends' | 'followups' | null
+type Section = 'header' | 'journal' | 'friends' | 'followups' | 'vibe' | null
 
 export default function HangoutDetail() {
   const { id } = useParams()
@@ -84,6 +84,9 @@ export default function HangoutDetail() {
   const [editHighlights, setEditHighlights] = useState('')
   const [editFollowUps, setEditFollowUps] = useState('')
   const [editFriendIds, setEditFriendIds] = useState<string[]>([])
+  const [editGroupId, setEditGroupId] = useState<string | null>(null)
+  const [editWhoSearch, setEditWhoSearch] = useState('')
+  const [editRating, setEditRating] = useState(0)
 
   const journalRef = useRef<HTMLTextAreaElement>(null)
 
@@ -100,7 +103,12 @@ export default function HangoutDetail() {
     if (section === 'header') { setEditType(hangout.type); setEditLocation(hangout.location); setEditDate(hangout.date) }
     if (section === 'journal') setEditHighlights(hangout.highlights ?? '')
     if (section === 'followups') setEditFollowUps((hangout.follow_ups ?? []).join('\n'))
-    if (section === 'friends') setEditFriendIds(hangout.hangout_friends.map(hf => hf.friend_id))
+    if (section === 'friends') {
+      setEditGroupId(hangout.hangout_groups[0]?.group_id ?? null)
+      setEditFriendIds(hangout.hangout_friends.map(hf => hf.friend_id))
+      setEditWhoSearch('')
+    }
+    if (section === 'vibe') { setEditRating((hangout as any).rating ?? 0) }
     setEditing(section)
   }
 
@@ -116,7 +124,11 @@ export default function HangoutDetail() {
     } else if (section === 'followups') {
       await updateHangout(id, { follow_ups: editFollowUps.split('\n').map(s => s.trim()).filter(Boolean) })
     } else if (section === 'friends') {
-      await updateHangout(id, {}, editFriendIds)
+      const selectedGroup = groups.find(g => g.id === editGroupId)
+      const friendIds = editGroupId ? (selectedGroup?.memberIds ?? []) : editFriendIds
+      await updateHangout(id, {}, friendIds, editGroupId ? [editGroupId] : [])
+    } else if (section === 'vibe') {
+      await updateHangout(id, { rating: editRating || null })
     }
     await reload()
     setSaving(false)
@@ -134,7 +146,7 @@ export default function HangoutDetail() {
     navigate('/hangouts')
   }
 
-  if (loading) return <div className="page-container"><p style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-sans)' }}>Loading…</p></div>
+  if (loading) return <div className="page-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '60vh' }}><p style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', color: 'var(--text-muted)' }}>Loading…</p></div>
   if (!hangout) return <div className="page-container"><p>Hangout not found.</p></div>
 
   const accent = typeAccent(hangout.type)
@@ -156,7 +168,7 @@ export default function HangoutDetail() {
           {images.length > 1 && (
             <button onClick={() => setLightboxIdx(0)} style={{ position: 'absolute', bottom: 16, right: 16, zIndex: 2, background: 'rgba(0,0,0,0.38)', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)', border: '1px solid rgba(255,255,255,0.18)', borderRadius: 'var(--radius-full)', padding: '5px 12px', color: 'white', fontFamily: 'var(--font-sans)', fontSize: '0.68rem', fontWeight: 500, cursor: 'pointer' }}>{images.length} photos</button>
           )}
-          <div style={{ position: 'absolute', bottom: 16, left: 16, zIndex: 2, fontFamily: 'var(--font-sans)', fontSize: '0.62rem', fontWeight: 700, color: 'rgba(255,255,255,0.85)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{hangout.type}</div>
+          <div style={{ position: 'absolute', bottom: 16, left: 16, zIndex: 2, fontFamily: 'var(--font-sans)', fontSize: '0.62rem', fontWeight: 700, color: 'rgba(255,255,255,0.85)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>{hangout.location || hangout.type}</div>
         </div>
 
         <div className="animate-in">
@@ -167,7 +179,7 @@ export default function HangoutDetail() {
               {editing === 'header' ? (
                 <div>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8, marginBottom: 8 }}>
-                    <input className="form-input" value={editType} onChange={e => setEditType(e.target.value)} placeholder="Type (e.g. Dinner)" autoFocus style={{ fontSize: '0.9rem' }} />
+                    <input className="form-input" value={editType} onChange={e => setEditType(e.target.value)} placeholder="Title (e.g. Dinner)" autoFocus style={{ fontSize: '0.9rem' }} />
                     <input className="form-input" type="date" value={editDate} onChange={e => setEditDate(e.target.value)} style={{ fontSize: '0.9rem' }} />
                     <input className="form-input" value={editLocation} onChange={e => setEditLocation(e.target.value)} placeholder="Location" style={{ gridColumn: '1 / -1', fontSize: '0.9rem' }} />
                   </div>
@@ -175,10 +187,9 @@ export default function HangoutDetail() {
                 </div>
               ) : (
                 <>
-                  <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.8rem', fontWeight: 500, lineHeight: 1.15, marginBottom: 6, color: 'var(--text-primary)' }}>{hangout.type}</h1>
+                  <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.8rem', fontWeight: 500, lineHeight: 1.15, marginBottom: 6, color: 'var(--text-primary)' }}>{hangout.location || hangout.type}</h1>
                   <div style={{ display: 'flex', alignItems: 'center', gap: 8, fontFamily: 'var(--font-sans)', fontSize: '0.82rem', color: 'var(--text-muted)' }}>
-                    <span>{hangout.location}</span>
-                    <span style={{ opacity: 0.4 }}>·</span>
+                    {hangout.location && <><span>{hangout.type}</span><span style={{ opacity: 0.4 }}>·</span></>}
                     <span>{hangout.date}</span>
                   </div>
                 </>
@@ -228,6 +239,43 @@ export default function HangoutDetail() {
             )}
           </div>
 
+          {/* ── Rating ── */}
+          <div className="pencil-row" style={{ marginBottom: 'var(--space-2xl)', paddingBottom: 'var(--space-2xl)', borderBottom: '1px solid var(--border)' }}>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
+              <div style={{ fontFamily: 'var(--font-serif)', fontSize: '0.72rem', fontWeight: 700, color: 'var(--text-secondary)', textTransform: 'uppercase', letterSpacing: '0.1em' }}>Rating</div>
+              {editing !== 'vibe' && <PencilBtn onClick={() => open('vibe')} />}
+            </div>
+
+            {editing === 'vibe' ? (
+              <div>
+                <div style={{ display: 'flex', background: 'var(--bg)', borderRadius: 'var(--radius-full)', border: '1px solid var(--border)', overflow: 'hidden' }}>
+                  {[1,2,3,4,5,6,7,8,9,10].map(n => (
+                    <button key={n} type="button" onClick={() => setEditRating(editRating === n ? 0 : n)}
+                      style={{
+                        flex: 1, height: 42, border: 'none', cursor: 'pointer', padding: 0,
+                        background: editRating >= n ? 'var(--accent)' : 'transparent',
+                        color: editRating >= n ? 'white' : 'var(--text-muted)',
+                        fontFamily: 'var(--font-serif)', fontSize: '0.92rem', fontWeight: editRating === n ? 700 : 500,
+                        transition: 'background 0.15s, color 0.15s',
+                      }}
+                    >{n}</button>
+                  ))}
+                </div>
+                <InlineSave onSave={() => save('vibe')} onCancel={cancel} saving={saving} />
+              </div>
+            ) : (
+              <div>
+                {(hangout as any).rating > 0 ? (
+                  <span style={{ fontFamily: 'var(--font-serif)', fontSize: '1.6rem', fontWeight: 700, color: 'var(--accent)', lineHeight: 1 }}>
+                    {(hangout as any).rating}<span style={{ fontSize: '1rem', fontWeight: 500 }}>/10</span>
+                  </span>
+                ) : (
+                  <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.82rem', color: 'var(--text-muted)', fontStyle: 'italic', margin: 0 }}>No rating yet.</p>
+                )}
+              </div>
+            )}
+          </div>
+
           {/* ── Who was there ── */}
           <div className="pencil-row" style={{ marginBottom: 'var(--space-2xl)', paddingBottom: 'var(--space-2xl)', borderBottom: '1px solid var(--border)' }}>
             <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 'var(--space-lg)' }}>
@@ -237,13 +285,48 @@ export default function HangoutDetail() {
 
             {editing === 'friends' ? (
               <div>
-                <div className="pill-wrap">
-                  {friends.map(f => (
-                    <button key={f.id} onClick={() => toggleFriend(f.id)} className="pill pill-default" style={{ cursor: 'pointer', opacity: editFriendIds.includes(f.id) ? 1 : 0.4 }}>
-                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: f.avatar_color, display: 'inline-block', marginRight: 5 }} />
-                      {f.name.split(' ')[0]}
-                    </button>
-                  ))}
+                <input
+                  className="form-input"
+                  placeholder="Search groups or friends…"
+                  value={editWhoSearch}
+                  onChange={e => setEditWhoSearch(e.target.value)}
+                  style={{ marginBottom: 8, fontSize: '0.88rem' }}
+                  autoFocus
+                />
+                <div style={{ borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', overflow: 'hidden', maxHeight: 260, overflowY: 'auto', overscrollBehavior: 'contain', marginBottom: 10 }}>
+                  {groups.filter(g => g.name.toLowerCase().includes(editWhoSearch.toLowerCase())).map(g => {
+                    const selected = editGroupId === g.id
+                    const memberNames = g.memberIds.map(id => friends.find(f => f.id === id)?.name.split(' ')[0]).filter(Boolean)
+                    return (
+                      <div key={g.id} onClick={() => setEditGroupId(prev => prev === g.id ? null : g.id)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid var(--border)', background: selected ? `${g.color}0c` : 'transparent', transition: 'background 120ms' }}>
+                        <div style={{ width: 34, height: 34, borderRadius: 8, background: `${g.color}18`, border: `1px solid ${g.color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: g.color, fontSize: '1rem' }}>{g.symbol}</div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontFamily: 'var(--font-serif)', fontSize: '0.92rem', fontWeight: 500, color: 'var(--text)' }}>{g.name}</div>
+                          {memberNames.length > 0 && <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.72rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{memberNames.join(', ')}</div>}
+                        </div>
+                        <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${selected ? g.color : 'var(--border)'}`, background: selected ? g.color : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 150ms' }}>
+                          {selected && <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
+                        </div>
+                      </div>
+                    )
+                  })}
+                  {!editGroupId && friends.filter(f => f.name.toLowerCase().includes(editWhoSearch.toLowerCase())).map(f => {
+                    const selected = editFriendIds.includes(f.id)
+                    return (
+                      <div key={f.id} onClick={() => toggleFriend(f.id)} style={{ display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px', cursor: 'pointer', borderBottom: '1px solid var(--border)', background: selected ? 'var(--accent-bg)' : 'transparent', transition: 'background 120ms' }}>
+                        <div style={{ width: 34, height: 34, borderRadius: '50%', background: f.avatar_color, overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                          {f.avatar_url ? <img src={f.avatar_url} alt={f.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '0.65rem', color: 'white', fontFamily: 'var(--font-serif)', fontWeight: 500 }}>{f.initials}</span>}
+                        </div>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <div style={{ fontFamily: 'var(--font-serif)', fontSize: '0.92rem', fontWeight: 500, color: 'var(--text)' }}>{f.name}</div>
+                          {f.location && <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.72rem', color: 'var(--text-muted)' }}>{f.location}</div>}
+                        </div>
+                        <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${selected ? 'var(--accent)' : 'var(--border)'}`, background: selected ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 150ms' }}>
+                          {selected && <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
+                        </div>
+                      </div>
+                    )
+                  })}
                 </div>
                 <InlineSave onSave={() => save('friends')} onCancel={cancel} saving={saving} />
               </div>
@@ -266,8 +349,8 @@ export default function HangoutDetail() {
                         <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
                           {members.map(hf => (
                             <Link key={hf.id} to={`/friends/${hf.friend_id}`} style={{ display: 'flex', alignItems: 'center', gap: 14, textDecoration: 'none' }}>
-                              <div style={{ width: 36, height: 36, borderRadius: '50%', flexShrink: 0, background: hf.avatar_color || hg.group_color, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-serif)', fontSize: '0.78rem', fontWeight: 500, color: 'white' }}>
-                                {hf.friend_name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}
+                              <div style={{ width: 36, height: 36, borderRadius: '50%', flexShrink: 0, background: hf.avatar_color || hg.group_color, overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-serif)', fontSize: '0.78rem', fontWeight: 500, color: 'white' }}>
+                                {hf.avatar_url ? <img src={hf.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : hf.friend_name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}
                               </div>
                               <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.9rem', fontWeight: 500, color: 'var(--text-primary)', flex: 1 }}>{hf.friend_name}</span>
                               {hf.feeling_label && <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.72rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>{hf.feeling_label}</span>}
@@ -289,8 +372,8 @@ export default function HangoutDetail() {
                   const solo = hangout.hangout_friends.filter(hf => !groupedIds.has(hf.friend_id))
                   return solo.map(hf => (
                     <Link key={hf.id} to={`/friends/${hf.friend_id}`} style={{ display: 'flex', alignItems: 'center', gap: 14, textDecoration: 'none' }}>
-                      <div style={{ width: 38, height: 38, borderRadius: '50%', flexShrink: 0, background: hf.avatar_color || 'var(--accent)', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-serif)', fontSize: '0.8rem', fontWeight: 500, color: 'white' }}>
-                        {hf.friend_name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}
+                      <div style={{ width: 38, height: 38, borderRadius: '50%', flexShrink: 0, background: hf.avatar_color || 'var(--accent)', overflow: 'hidden', display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: 'var(--font-serif)', fontSize: '0.8rem', fontWeight: 500, color: 'white' }}>
+                        {hf.avatar_url ? <img src={hf.avatar_url} alt="" style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : hf.friend_name.split(' ').map((w: string) => w[0]).join('').slice(0, 2).toUpperCase()}
                       </div>
                       <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.92rem', fontWeight: 500, color: 'var(--text-primary)', flex: 1 }}>{hf.friend_name}</span>
                       {hf.feeling_label && <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.72rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>{hf.feeling_label}</span>}

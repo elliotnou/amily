@@ -15,7 +15,7 @@ export interface HangoutGroupTag {
 }
 
 export interface HangoutWithFriends extends HangoutRow {
-  hangout_friends: (HangoutFriendRow & { friend_name: string; avatar_color?: string })[]
+  hangout_friends: (HangoutFriendRow & { friend_name: string; avatar_color?: string; avatar_url?: string | null })[]
   hangout_groups: HangoutGroupTag[]
 }
 
@@ -41,6 +41,7 @@ export function useHangouts() {
         )
       `)
       .order('date', { ascending: false })
+      .order('created_at', { ascending: false })
 
     if (error) { setError(error.message); setLoading(false); return }
 
@@ -77,7 +78,7 @@ export function useHangouts() {
   useEffect(() => { load() }, [load])
 
   const createHangout = async (
-    input: { type: string; location: string; date: string; highlights?: string; follow_ups?: string[] },
+    input: { type: string; location: string; date: string; highlights?: string; follow_ups?: string[]; rating?: number | null; tags?: string[] },
     friendIds: { id: string; feeling_label?: string }[],
     groupIds: string[] = []
   ) => {
@@ -111,14 +112,21 @@ export function useHangouts() {
 
   const updateHangout = async (
     id: string,
-    updates: { type?: string; location?: string; date?: string; highlights?: string | null; follow_ups?: string[] },
-    friendIds?: string[]
+    updates: { type?: string; location?: string; date?: string; highlights?: string | null; follow_ups?: string[]; rating?: number | null; tags?: string[] },
+    friendIds?: string[],
+    groupIds?: string[]
   ) => {
     const { error } = await supabase.from('hangouts').update(updates).eq('id', id)
     if (friendIds !== undefined) {
       await supabase.from('hangout_friends').delete().eq('hangout_id', id)
       if (friendIds.length > 0) {
         await supabase.from('hangout_friends').insert(friendIds.map(fid => ({ hangout_id: id, friend_id: fid })))
+      }
+    }
+    if (groupIds !== undefined) {
+      await supabase.from('hangout_groups').delete().eq('hangout_id', id)
+      if (groupIds.length > 0) {
+        await supabase.from('hangout_groups').insert(groupIds.map(gid => ({ hangout_id: id, group_id: gid })))
       }
     }
     if (!error) await load()
@@ -136,7 +144,7 @@ export function useHangout(id: string | undefined) {
     if (!id) return
     const { data } = await supabase
       .from('hangouts')
-      .select(`*, hangout_friends (id, friend_id, feeling_label, friends (name, avatar_color))`)
+      .select(`*, hangout_friends (id, friend_id, feeling_label, friends (name, avatar_color, avatar_url))`)
       .eq('id', id)
       .single()
     if (data) {
@@ -161,6 +169,7 @@ export function useHangout(id: string | undefined) {
           ...hf,
           friend_name: hf.friends?.name ?? '',
           avatar_color: hf.friends?.avatar_color ?? 'var(--accent)',
+          avatar_url: hf.friends?.avatar_url ?? null,
         })),
         hangout_groups: hangoutGroups,
       })

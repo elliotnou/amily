@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback, useRef } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import { useFriend } from '../lib/hooks/useFriend'
 import { useHangouts } from '../lib/hooks/useHangouts'
+import { useImpressions } from '../lib/hooks/useImpressions'
 import { callAI, buildFriendContext, PROMPTS } from '../lib/ai'
 import { IconArrowLeft, IconSparkle } from '../components/Icons'
 
@@ -140,8 +141,9 @@ function FriendAIPage({ title, buildPrompt, friendId }: {
 }) {
   const { friend } = useFriend(friendId)
   const { hangouts } = useHangouts()
+  const { impressions } = useImpressions(friendId)
   const friendHangouts = hangouts.filter(h => h.hangout_friends.some((hf: any) => hf.friend_id === friendId))
-  const prompt = friend ? buildPrompt(buildFriendContext(friend, friendHangouts)) : null
+  const prompt = friend ? buildPrompt(buildFriendContext(friend, friendHangouts, impressions)) : null
   const { text, status, error, regenerate } = useAIStream(prompt)
 
   if (!friend) return <div className="page-container"><p style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-sans)' }}>Loading…</p></div>
@@ -159,7 +161,7 @@ function FriendAIPage({ title, buildPrompt, friendId }: {
         <div>
           <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.5rem', fontWeight: 500 }}>{title(friend.name.split(' ')[0])}</h1>
           <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>
-            Based on {friend.facts.length} facts · {friend.notes.length} notes · {friendHangouts.length} hangouts
+            Based on {friend.facts.length} facts · {friend.notes.length} notes · {impressions.length} impressions · {friendHangouts.length} hangouts
           </p>
         </div>
       </div>
@@ -195,6 +197,7 @@ export function AIFriendshipStory() {
   const { friendId } = useParams()
   const { friend } = useFriend(friendId)
   const { hangouts } = useHangouts()
+  const { impressions } = useImpressions(friendId)
   const friendHangouts = hangouts.filter(h => h.hangout_friends.some((hf: any) => hf.friend_id === friendId))
   const [selectedVibe, setSelectedVibe] = useState<string>('Wholesome')
   const [activePrompt, setActivePrompt] = useState<string | null>(null)
@@ -202,7 +205,7 @@ export function AIFriendshipStory() {
 
   const generate = () => {
     if (!friend) return
-    const ctx = buildFriendContext(friend, friendHangouts)
+    const ctx = buildFriendContext(friend, friendHangouts, impressions)
     setActivePrompt(PROMPTS.friendshipStory(ctx, selectedVibe))
   }
 
@@ -221,7 +224,7 @@ export function AIFriendshipStory() {
         <div>
           <h1 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.5rem', fontWeight: 500 }}>Your story with {friend.name.split(' ')[0]}</h1>
           <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--text-muted)', marginTop: 2 }}>
-            Based on {friend.facts.length} facts · {friend.notes.length} notes · {friendHangouts.length} hangouts
+            Based on {friend.facts.length} facts · {friend.notes.length} notes · {impressions.length} impressions · {friendHangouts.length} hangouts
           </p>
         </div>
       </div>

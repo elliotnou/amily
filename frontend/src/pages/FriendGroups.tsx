@@ -1,6 +1,8 @@
 import { useState, useRef } from 'react'
+import { Link } from 'react-router-dom'
 import { useFriendGroups } from '../lib/hooks/useFriendGroups'
 import { useFriends } from '../lib/hooks/useFriends'
+import Modal from '../components/Modal'
 import type { FriendGroupWithMembers } from '../lib/hooks/useFriendGroups'
 import type { Database } from '../lib/database.types'
 
@@ -138,6 +140,45 @@ interface FlowProps {
   onClose: () => void
 }
 
+function FriendRow({ f, color, isSelected, onToggle }: { f: FriendRow; color: string; isSelected: boolean; onToggle: () => void }) {
+  return (
+    <div
+      className="fg-friend-row"
+      onClick={onToggle}
+      style={{
+        display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
+        cursor: 'pointer',
+        background: isSelected ? `${color}0c` : 'transparent',
+        borderBottom: '1px solid var(--border)',
+        transition: 'background 120ms',
+      }}
+    >
+      <div style={{ width: 34, height: 34, borderRadius: '50%', background: f.avatar_color, overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        {f.avatar_url
+          ? <img src={f.avatar_url} alt={f.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          : <span style={{ fontSize: '0.65rem', color: 'white', fontFamily: 'var(--font-serif)', fontWeight: 500 }}>{f.initials}</span>}
+      </div>
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{ fontFamily: 'var(--font-serif)', fontSize: '0.92rem', fontWeight: 500, color: 'var(--text)' }}>{f.name}</div>
+        {f.location && <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.72rem', color: 'var(--text-muted)' }}>{f.location}</div>}
+      </div>
+      <div style={{
+        width: 20, height: 20, borderRadius: '50%',
+        border: `2px solid ${isSelected ? color : 'var(--border)'}`,
+        background: isSelected ? color : 'transparent',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        flexShrink: 0, transition: 'all 150ms ease',
+      }}>
+        {isSelected && (
+          <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+            <polyline points="20 6 9 17 4 12" />
+          </svg>
+        )}
+      </div>
+    </div>
+  )
+}
+
 function GroupFlow({ allFriends, initialGroup, onSave, onClose }: FlowProps) {
   const [step, setStep] = useState(0)
   const [name, setName] = useState(initialGroup?.name ?? '')
@@ -168,108 +209,53 @@ function GroupFlow({ allFriends, initialGroup, onSave, onClose }: FlowProps) {
     setSaving(false)
   }
 
-  const steps = isEdit ? 1 : 3
+  const sharedOverlay = {
+    position: 'fixed' as const, inset: 0, zIndex: 1000,
+    background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(14px)',
+    display: 'flex', alignItems: 'center', justifyContent: 'center',
+    padding: 24, animation: 'fg-fadeIn 200ms ease',
+  }
 
-  return (
-    <>
-      <style>{`
-        @keyframes fg-fadeIn { from { opacity: 0 } to { opacity: 1 } }
-        @keyframes fg-slideUp { from { transform: translateY(28px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
-        .fg-symbol-btn { transition: all 160ms ease; }
-        .fg-symbol-btn:hover { transform: scale(1.15); }
-        .fg-friend-row:hover { background: var(--bg-hover) !important; }
-      `}</style>
-      <div
-        style={{
-          position: 'fixed', inset: 0, zIndex: 1000,
-          background: 'rgba(0,0,0,0.5)', backdropFilter: 'blur(14px)',
-          display: 'flex', alignItems: 'center', justifyContent: 'center',
-          padding: 24, animation: 'fg-fadeIn 200ms ease',
-        }}
-        onMouseDown={e => { overlayMousedown.current = e.target === e.currentTarget }}
-        onClick={e => { if (e.target === e.currentTarget && overlayMousedown.current) onClose() }}
-      >
-        <div style={{
-          width: '100%', maxWidth: 480,
-          background: 'var(--bg-card)',
-          borderRadius: 'var(--radius-xl)',
-          boxShadow: '0 40px 100px rgba(0,0,0,0.3)',
-          overflow: 'hidden',
-          animation: 'fg-slideUp 280ms cubic-bezier(0.34,1.56,0.64,1)',
-        }}>
-          {/* Progress bar */}
-          {!isEdit && (
-            <div style={{ height: 3, background: 'var(--border)' }}>
-              <div style={{
-                height: '100%',
-                width: `${((step + 1) / steps) * 100}%`,
-                background: color,
-                transition: 'width 380ms ease, background 300ms ease',
-              }} />
+  // ── Edit mode: everything on one screen ──────────────────────────────
+  if (isEdit) {
+    return (
+      <>
+        <style>{`.fg-symbol-btn { transition: all 160ms ease; } .fg-symbol-btn:hover { transform: scale(1.15); } .fg-friend-row:hover { background: var(--bg-hover) !important; }`}</style>
+        <div style={sharedOverlay}
+          onMouseDown={e => { overlayMousedown.current = e.target === e.currentTarget }}
+          onClick={e => { if (e.target === e.currentTarget && overlayMousedown.current) onClose() }}
+        >
+          <div style={{
+            width: '100%', maxWidth: 500,
+            background: 'var(--bg-card)',
+            borderRadius: 'var(--radius-xl)',
+            boxShadow: '0 40px 100px rgba(0,0,0,0.3)',
+            maxHeight: '90vh', display: 'flex', flexDirection: 'column',
+            animation: 'fg-slideUp 280ms cubic-bezier(0.34,1.56,0.64,1)',
+          }}>
+            {/* Header */}
+            <div style={{ padding: '20px 22px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexShrink: 0 }}>
+              <span style={{ fontFamily: 'var(--font-serif)', fontSize: '1.15rem', fontWeight: 600, color: 'var(--text)' }}>Edit group</span>
+              <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.2rem', padding: '2px 6px', lineHeight: 1 }}>×</button>
             </div>
-          )}
 
-          {/* Header row */}
-          <div style={{ padding: '16px 22px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-            <div style={{ display: 'flex', gap: 6 }}>
-              {!isEdit && [0,1,2].map(i => (
-                <div key={i} style={{
-                  width: i === step ? 20 : 6, height: 6,
-                  borderRadius: 'var(--radius-full)',
-                  background: i <= step ? color : 'var(--border)',
-                  transition: 'all 300ms ease',
-                }} />
-              ))}
-            </div>
-            <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.2rem', padding: '2px 6px', lineHeight: 1 }}>×</button>
-          </div>
+            {/* Scrollable body */}
+            <div style={{ overflowY: 'auto', padding: '20px 22px 26px', flex: 1 }}>
 
-          {/* ── STEP 0 / EDIT: Name ── */}
-          {(step === 0) && (
-            <div style={{ padding: '22px 24px 26px' }}>
-              <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.4rem', fontWeight: 500, textAlign: 'center', marginBottom: 6 }}>
-                {isEdit ? `Edit "${initialGroup.name}"` : 'Name your group'}
-              </h2>
-              <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', marginBottom: 24 }}>
-                {isEdit ? 'Update the name, color, or symbol.' : 'What do you call these people in your head?'}
-              </p>
-
-              {/* Live preview card */}
-              <div style={{
-                padding: '18px 20px',
-                borderRadius: 'var(--radius-lg)',
-                background: `linear-gradient(140deg, ${color}14 0%, ${color}04 100%)`,
-                border: `1px solid ${color}30`,
-                marginBottom: 22,
-                position: 'relative',
-                overflow: 'hidden',
-                minHeight: 90,
-              }}>
-                <div style={{ position: 'absolute', right: 12, bottom: 4, fontSize: '3.5rem', color, opacity: 0.12, lineHeight: 1, userSelect: 'none' }}>{symbol}</div>
-                <div style={{
-                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-                  width: 30, height: 30, borderRadius: 8,
-                  background: `${color}18`, border: `1px solid ${color}30`,
-                  color, fontSize: '0.9rem', marginBottom: 8,
-                }}>{symbol}</div>
-                <div style={{ fontFamily: 'var(--font-serif)', fontSize: '1.1rem', fontWeight: 600, color: 'var(--text)' }}>
-                  {name || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontWeight: 400 }}>Group name…</span>}
-                </div>
-              </div>
-
+              {/* Name */}
+              <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.67rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>Name</p>
               <input
                 autoFocus
                 className="form-input"
                 placeholder="e.g. The Homies, Work Crew, Book Club"
                 value={name}
                 onChange={e => setName(e.target.value)}
-                onKeyDown={e => e.key === 'Enter' && name.trim() && (isEdit ? handleSave() : setStep(1))}
-                style={{ fontSize: '1rem', marginBottom: 20, fontFamily: 'var(--font-serif)' }}
+                style={{ fontSize: '1rem', marginBottom: 22, fontFamily: 'var(--font-serif)' }}
               />
 
-              {/* Color picker */}
+              {/* Color */}
               <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.67rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Color</p>
-              <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 20 }}>
+              <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 22 }}>
                 {COLORS.map(c => (
                   <button key={c} onClick={() => setColor(c)} style={{
                     width: 26, height: 26, borderRadius: '50%', background: c, padding: 0, cursor: 'pointer',
@@ -280,9 +266,9 @@ function GroupFlow({ allFriends, initialGroup, onSave, onClose }: FlowProps) {
                 ))}
               </div>
 
-              {/* Symbol picker */}
+              {/* Symbol */}
               <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.67rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Symbol</p>
-              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 24 }}>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 22 }}>
                 {SYMBOLS.map(s => (
                   <button key={s} className="fg-symbol-btn" onClick={() => setSymbol(s)} style={{
                     width: 36, height: 36, borderRadius: 'var(--radius-md)',
@@ -295,86 +281,127 @@ function GroupFlow({ allFriends, initialGroup, onSave, onClose }: FlowProps) {
                 ))}
               </div>
 
-              <button
-                className="btn btn-primary"
-                style={{ width: '100%', padding: '13px', background: color, fontSize: '0.95rem' }}
-                onClick={() => setStep(1)}
-                disabled={!name.trim()}
-              >
-                {isEdit ? 'Next: Members →' : 'Continue →'}
-              </button>
-            </div>
-          )}
-
-          {/* ── STEP 1: Add/edit friends ── */}
-          {step === 1 && (
-            <div style={{ padding: '22px 24px 26px' }}>
-              <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.4rem', fontWeight: 500, textAlign: 'center', marginBottom: 4 }}>
-                Who's in the group?
-              </h2>
-              <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', marginBottom: 20 }}>
-                You can always add more later.
+              {/* Members */}
+              <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.67rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>
+                Members {selectedIds.size > 0 && <span style={{ color, fontWeight: 700 }}>· {selectedIds.size}</span>}
               </p>
-
-              {/* Search */}
               <input
-                autoFocus
                 className="form-input"
                 placeholder="Search friends…"
                 value={friendSearch}
                 onChange={e => setFriendSearch(e.target.value)}
-                style={{ marginBottom: 12, fontSize: '0.9rem' }}
+                style={{ marginBottom: 10, fontSize: '0.88rem' }}
               />
+              <div style={{ borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', overflow: 'hidden', marginBottom: 24 }}>
+                {filteredFriends.length === 0
+                  ? <div style={{ padding: 16, textAlign: 'center', fontFamily: 'var(--font-sans)', fontSize: '0.82rem', color: 'var(--text-muted)' }}>No friends found</div>
+                  : filteredFriends.map(f => (
+                    <FriendRow key={f.id} f={f} color={color} isSelected={selectedIds.has(f.id)} onToggle={() => toggle(f.id)} />
+                  ))
+                }
+              </div>
 
-              {/* Friend list */}
+              <button
+                onClick={handleSave}
+                disabled={saving || !name.trim()}
+                style={{ width: '100%', padding: '13px', borderRadius: 'var(--radius-md)', border: 'none', cursor: 'pointer', background: color, color: 'white', fontFamily: 'var(--font-sans)', fontWeight: 600, fontSize: '0.94rem', opacity: saving || !name.trim() ? 0.6 : 1, transition: 'opacity 200ms' }}
+              >
+                {saving ? 'Saving…' : 'Save changes'}
+              </button>
+            </div>
+          </div>
+        </div>
+      </>
+    )
+  }
+
+  // ── Create mode: multi-step ───────────────────────────────────────────
+  return (
+    <>
+      <style>{`
+        @keyframes fg-fadeIn { from { opacity: 0 } to { opacity: 1 } }
+        @keyframes fg-slideUp { from { transform: translateY(28px); opacity: 0 } to { transform: translateY(0); opacity: 1 } }
+        .fg-symbol-btn { transition: all 160ms ease; }
+        .fg-symbol-btn:hover { transform: scale(1.15); }
+        .fg-friend-row:hover { background: var(--bg-hover) !important; }
+      `}</style>
+      <div
+        style={sharedOverlay}
+        onMouseDown={e => { overlayMousedown.current = e.target === e.currentTarget }}
+        onClick={e => { if (e.target === e.currentTarget && overlayMousedown.current) onClose() }}
+      >
+        <div style={{
+          width: '100%', maxWidth: 480,
+          background: 'var(--bg-card)',
+          borderRadius: 'var(--radius-xl)',
+          boxShadow: '0 40px 100px rgba(0,0,0,0.3)',
+          overflow: 'hidden',
+          animation: 'fg-slideUp 280ms cubic-bezier(0.34,1.56,0.64,1)',
+        }}>
+          {/* Progress bar */}
+          <div style={{ height: 3, background: 'var(--border)' }}>
+            <div style={{ height: '100%', width: `${((step + 1) / 2) * 100}%`, background: color, transition: 'width 380ms ease, background 300ms ease' }} />
+          </div>
+
+          {/* Header dots */}
+          <div style={{ padding: '16px 22px 0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+            <div style={{ display: 'flex', gap: 6 }}>
+              {[0, 1].map(i => (
+                <div key={i} style={{ width: i === step ? 20 : 6, height: 6, borderRadius: 'var(--radius-full)', background: i <= step ? color : 'var(--border)', transition: 'all 300ms ease' }} />
+              ))}
+            </div>
+            <button onClick={onClose} style={{ background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.2rem', padding: '2px 6px', lineHeight: 1 }}>×</button>
+          </div>
+
+          {/* Step 0: Name / color / symbol */}
+          {step === 0 && (
+            <div style={{ padding: '22px 24px 26px' }}>
+              <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.4rem', fontWeight: 500, textAlign: 'center', marginBottom: 6 }}>Name your group</h2>
+              <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', marginBottom: 24 }}>What do you call these people in your head?</p>
+
+              <div style={{ padding: '18px 20px', borderRadius: 'var(--radius-lg)', background: `linear-gradient(140deg, ${color}14 0%, ${color}04 100%)`, border: `1px solid ${color}30`, marginBottom: 22, position: 'relative', overflow: 'hidden', minHeight: 90 }}>
+                <div style={{ position: 'absolute', right: 12, bottom: 4, fontSize: '3.5rem', color, opacity: 0.12, lineHeight: 1, userSelect: 'none' }}>{symbol}</div>
+                <div style={{ display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: 30, height: 30, borderRadius: 8, background: `${color}18`, border: `1px solid ${color}30`, color, fontSize: '0.9rem', marginBottom: 8 }}>{symbol}</div>
+                <div style={{ fontFamily: 'var(--font-serif)', fontSize: '1.1rem', fontWeight: 600, color: 'var(--text)' }}>
+                  {name || <span style={{ color: 'var(--text-muted)', fontStyle: 'italic', fontWeight: 400 }}>Group name…</span>}
+                </div>
+              </div>
+
+              <input autoFocus className="form-input" placeholder="e.g. The Homies, Work Crew, Book Club" value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && name.trim() && setStep(1)} style={{ fontSize: '1rem', marginBottom: 20, fontFamily: 'var(--font-serif)' }} />
+
+              <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.67rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Color</p>
+              <div style={{ display: 'flex', gap: 7, flexWrap: 'wrap', marginBottom: 20 }}>
+                {COLORS.map(c => (
+                  <button key={c} onClick={() => setColor(c)} style={{ width: 26, height: 26, borderRadius: '50%', background: c, padding: 0, cursor: 'pointer', border: color === c ? '3px solid var(--text)' : '3px solid transparent', transform: color === c ? 'scale(1.2)' : 'scale(1)', transition: 'all 180ms ease', outline: 'none' }} />
+                ))}
+              </div>
+
+              <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.67rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 10 }}>Symbol</p>
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 24 }}>
+                {SYMBOLS.map(s => (
+                  <button key={s} className="fg-symbol-btn" onClick={() => setSymbol(s)} style={{ width: 36, height: 36, borderRadius: 'var(--radius-md)', background: symbol === s ? `${color}18` : 'var(--bg)', border: `1.5px solid ${symbol === s ? color : 'var(--border)'}`, color: symbol === s ? color : 'var(--text-secondary)', fontSize: '1rem', cursor: 'pointer', outline: 'none', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>{s}</button>
+                ))}
+              </div>
+
+              <button className="btn btn-primary" style={{ width: '100%', padding: '13px', background: color, fontSize: '0.95rem' }} onClick={() => setStep(1)} disabled={!name.trim()}>Continue →</button>
+            </div>
+          )}
+
+          {/* Step 1: Members */}
+          {step === 1 && (
+            <div style={{ padding: '22px 24px 26px' }}>
+              <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.4rem', fontWeight: 500, textAlign: 'center', marginBottom: 4 }}>Who's in the group?</h2>
+              <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', marginBottom: 20 }}>You can always add more later.</p>
+
+              <input autoFocus className="form-input" placeholder="Search friends…" value={friendSearch} onChange={e => setFriendSearch(e.target.value)} style={{ marginBottom: 12, fontSize: '0.9rem' }} />
+
               <div style={{ maxHeight: 260, overflowY: 'auto', marginBottom: 20, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)' }}>
-                {filteredFriends.length === 0 ? (
-                  <div style={{ padding: 20, textAlign: 'center', fontFamily: 'var(--font-sans)', fontSize: '0.82rem', color: 'var(--text-muted)' }}>No friends found</div>
-                ) : filteredFriends.map(f => {
-                  const isSelected = selectedIds.has(f.id)
-                  return (
-                    <div
-                      key={f.id}
-                      className="fg-friend-row"
-                      onClick={() => toggle(f.id)}
-                      style={{
-                        display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
-                        cursor: 'pointer',
-                        background: isSelected ? `${color}0c` : 'transparent',
-                        borderBottom: '1px solid var(--border)',
-                        transition: 'background 120ms',
-                      }}
-                    >
-                      <div style={{
-                        width: 34, height: 34, borderRadius: '50%',
-                        background: f.avatar_url ? 'transparent' : f.avatar_color,
-                        overflow: 'hidden', flexShrink: 0,
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      }}>
-                        {f.avatar_url
-                          ? <img src={f.avatar_url} alt={f.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                          : <span style={{ fontSize: '0.65rem', color: 'white', fontFamily: 'var(--font-serif)', fontWeight: 500 }}>{f.initials}</span>}
-                      </div>
-                      <div style={{ flex: 1, minWidth: 0 }}>
-                        <div style={{ fontFamily: 'var(--font-serif)', fontSize: '0.92rem', fontWeight: 500, color: 'var(--text)' }}>{f.name}</div>
-                        {f.location && <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.72rem', color: 'var(--text-muted)' }}>{f.location}</div>}
-                      </div>
-                      <div style={{
-                        width: 20, height: 20, borderRadius: '50%',
-                        border: `2px solid ${isSelected ? color : 'var(--border)'}`,
-                        background: isSelected ? color : 'transparent',
-                        display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        flexShrink: 0, transition: 'all 150ms ease',
-                      }}>
-                        {isSelected && (
-                          <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
-                            <polyline points="20 6 9 17 4 12" />
-                          </svg>
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
+                {filteredFriends.length === 0
+                  ? <div style={{ padding: 20, textAlign: 'center', fontFamily: 'var(--font-sans)', fontSize: '0.82rem', color: 'var(--text-muted)' }}>No friends found</div>
+                  : filteredFriends.map(f => (
+                    <FriendRow key={f.id} f={f} color={color} isSelected={selectedIds.has(f.id)} onToggle={() => toggle(f.id)} />
+                  ))
+                }
               </div>
 
               {selectedIds.size > 0 && (
@@ -385,12 +412,8 @@ function GroupFlow({ allFriends, initialGroup, onSave, onClose }: FlowProps) {
 
               <div style={{ display: 'flex', gap: 10 }}>
                 <button className="btn btn-ghost" style={{ flex: 1 }} onClick={() => setStep(0)}>← Back</button>
-                <button
-                  onClick={handleSave}
-                  disabled={saving}
-                  style={{ flex: 2, padding: '13px', borderRadius: 'var(--radius-md)', border: 'none', cursor: 'pointer', background: color, color: 'white', fontFamily: 'var(--font-sans)', fontWeight: 600, fontSize: '0.94rem', opacity: saving ? 0.6 : 1, transition: 'opacity 200ms' }}
-                >
-                  {saving ? (isEdit ? 'Saving…' : 'Creating…') : isEdit ? 'Save changes' : `Create ${name.split(' ')[0]} ✦`}
+                <button onClick={handleSave} disabled={saving} style={{ flex: 2, padding: '13px', borderRadius: 'var(--radius-md)', border: 'none', cursor: 'pointer', background: color, color: 'white', fontFamily: 'var(--font-sans)', fontWeight: 600, fontSize: '0.94rem', opacity: saving ? 0.6 : 1, transition: 'opacity 200ms' }}>
+                  {saving ? 'Creating…' : `Create ${name.split(' ')[0]} ✦`}
                 </button>
               </div>
             </div>
@@ -407,14 +430,11 @@ interface DetailProps {
   allFriends: FriendRow[]
   onClose: () => void
   onDelete: () => void
-  onAddMember: (friendId: string) => void
   onEdit: () => void
 }
 
-function GroupDetail({ group, allFriends, onClose, onDelete, onAddMember, onEdit }: DetailProps) {
+function GroupDetail({ group, allFriends, onClose, onDelete, onEdit }: DetailProps) {
   const members = allFriends.filter(f => group.memberIds.includes(f.id))
-  const nonMembers = allFriends.filter(f => !group.memberIds.includes(f.id))
-  const [addOpen, setAddOpen] = useState(false)
   const [confirmDelete, setConfirmDelete] = useState(false)
   const overlayMousedown = useRef(false)
 
@@ -471,55 +491,23 @@ function GroupDetail({ group, allFriends, onClose, onDelete, onAddMember, onEdit
             </div>
             <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
               <button onClick={onEdit} style={{ padding: '6px 14px', borderRadius: 'var(--radius-full)', border: `1.5px solid ${group.color}40`, background: `${group.color}10`, color: group.color, fontFamily: 'var(--font-sans)', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer' }}>Edit group</button>
-              {!confirmDelete ? (
-                <button onClick={() => setConfirmDelete(true)} style={{ padding: '6px 14px', borderRadius: 'var(--radius-full)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', fontFamily: 'var(--font-sans)', fontSize: '0.76rem', cursor: 'pointer' }}>Delete</button>
-              ) : (
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                  <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.76rem', color: 'var(--text-secondary)' }}>Delete group?</span>
-                  <button onClick={onDelete} style={{ padding: '5px 12px', borderRadius: 'var(--radius-full)', border: '1.5px solid #dc2626', background: 'transparent', color: '#dc2626', fontFamily: 'var(--font-sans)', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer' }}>Yes</button>
-                  <button onClick={() => setConfirmDelete(false)} style={{ padding: '5px 12px', borderRadius: 'var(--radius-full)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', fontFamily: 'var(--font-sans)', fontSize: '0.76rem', cursor: 'pointer' }}>No</button>
-                </div>
-              )}
+              <button onClick={() => setConfirmDelete(true)} style={{ padding: '6px 14px', borderRadius: 'var(--radius-full)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', fontFamily: 'var(--font-sans)', fontSize: '0.76rem', cursor: 'pointer' }}>Delete</button>
             </div>
           </div>
 
           {/* Members list */}
           <div style={{ flex: 1, overflowY: 'auto', padding: '20px 24px' }}>
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 14 }}>
-              <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-secondary)' }}>Members</p>
-              {nonMembers.length > 0 && (
-                <button onClick={() => setAddOpen(!addOpen)} style={{ padding: '4px 12px', borderRadius: 'var(--radius-full)', border: `1.5px solid ${group.color}40`, background: addOpen ? `${group.color}10` : 'transparent', color: group.color, fontFamily: 'var(--font-sans)', fontSize: '0.73rem', fontWeight: 600, cursor: 'pointer' }}>
-                  {addOpen ? '− Cancel' : '+ Add'}
-                </button>
-              )}
-            </div>
-
-            {/* Add people dropdown */}
-            {addOpen && (
-              <div style={{ marginBottom: 16, borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', overflow: 'hidden' }}>
-                {nonMembers.map(f => (
-                  <div key={f.id} className="fg-member-card" onClick={() => { onAddMember(f.id); setAddOpen(false) }} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '9px 14px', cursor: 'pointer', borderBottom: '1px solid var(--border)', background: 'transparent', transition: 'background 120ms' }}>
-                    <div style={{ width: 30, height: 30, borderRadius: '50%', background: f.avatar_color, overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                      {f.avatar_url
-                        ? <img src={f.avatar_url} alt={f.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-                        : <span style={{ fontSize: '0.6rem', color: 'white', fontFamily: 'var(--font-serif)', fontWeight: 500 }}>{f.initials}</span>}
-                    </div>
-                    <span style={{ fontFamily: 'var(--font-serif)', fontSize: '0.9rem', color: 'var(--text)' }}>{f.name}</span>
-                    <span style={{ marginLeft: 'auto', color: group.color, fontSize: '0.78rem', fontFamily: 'var(--font-sans)', fontWeight: 600 }}>Add</span>
-                  </div>
-                ))}
-              </div>
-            )}
+            <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.68rem', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: 'var(--text-secondary)', marginBottom: 14 }}>Members</p>
 
             {members.length === 0 ? (
               <div style={{ textAlign: 'center', padding: '32px 0', fontFamily: 'var(--font-serif)', fontSize: '0.92rem', color: 'var(--text-muted)', fontStyle: 'italic' }}>
-                No members yet. Add some people.
+                No members yet. Hit "Edit group" to add people.
               </div>
             ) : (
               <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
                 {members.map(f => (
-                  <div key={f.id} className="fg-member-card" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'transparent', transition: 'background 120ms', position: 'relative' }}>
-                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: f.avatar_url ? 'transparent' : f.avatar_color, overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                  <Link key={f.id} to={`/friends/${f.id}`} className="fg-member-card" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 12px', borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', background: 'transparent', transition: 'background 120ms', textDecoration: 'none' }}>
+                    <div style={{ width: 36, height: 36, borderRadius: '50%', background: f.avatar_color, overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
                       {f.avatar_url
                         ? <img src={f.avatar_url} alt={f.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                         : <span style={{ fontSize: '0.7rem', color: 'white', fontFamily: 'var(--font-serif)', fontWeight: 500 }}>{f.initials}</span>}
@@ -528,20 +516,30 @@ function GroupDetail({ group, allFriends, onClose, onDelete, onAddMember, onEdit
                       <div style={{ fontFamily: 'var(--font-serif)', fontSize: '0.88rem', fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{f.name}</div>
                       {f.location && <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.68rem', color: 'var(--text-muted)' }}>{f.location}</div>}
                     </div>
-                  </div>
+                  </Link>
                 ))}
               </div>
             )}
           </div>
         </div>
       </div>
+
+      <Modal open={confirmDelete} onClose={() => setConfirmDelete(false)} title={`Delete "${group.name}"?`}>
+        <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.88rem', color: 'var(--text-secondary)', marginBottom: 'var(--space-lg)' }}>
+          This will permanently remove the group and all its settings. Members won't be affected.
+        </p>
+        <div className="modal-actions">
+          <button className="btn btn-ghost" onClick={() => setConfirmDelete(false)}>Cancel</button>
+          <button className="btn btn-primary" style={{ background: 'var(--negative)', borderColor: 'var(--negative)' }} onClick={onDelete}>Delete</button>
+        </div>
+      </Modal>
     </>
   )
 }
 
 // ── Main Page ──────────────────────────────────────────────────────────────
 export default function FriendGroups() {
-  const { groups, loading, createGroup, updateGroup, deleteGroup, addMember } = useFriendGroups()
+  const { groups, loading, createGroup, updateGroup, deleteGroup } = useFriendGroups()
   const { friends } = useFriends()
 
   const [showCreate, setShowCreate] = useState(false)
@@ -608,11 +606,7 @@ export default function FriendGroups() {
         </button>
       </div>
 
-      {loading ? (
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '80px 0', color: 'var(--text-muted)', fontFamily: 'var(--font-serif)', fontStyle: 'italic' }}>
-          Loading your groups…
-        </div>
-      ) : groups.length === 0 ? (
+      {loading ? <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '40vh' }}><p style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', color: 'var(--text-muted)' }}>Loading…</p></div> : groups.length === 0 ? (
         <div style={{ maxWidth: 380, margin: '60px auto', textAlign: 'center' }}>
           <div style={{ fontSize: '3rem', marginBottom: 16, opacity: 0.3 }}>⬡</div>
           <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.3rem', fontWeight: 500, marginBottom: 8 }}>No groups yet</h2>
@@ -672,7 +666,6 @@ export default function FriendGroups() {
           allFriends={friends}
           onClose={() => setOpenGroupId(null)}
           onDelete={handleDelete}
-          onAddMember={id => addMember(openGroup.id, id)}
           onEdit={() => { setEditingGroupId(openGroup.id); setOpenGroupId(null) }}
         />
       )}

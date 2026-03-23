@@ -166,6 +166,8 @@ export type Database = {
           date: string
           highlights: string | null
           follow_ups: string[]
+          rating: number | null
+          tags: string[]
           created_at: string
         }
         Insert: {
@@ -176,6 +178,8 @@ export type Database = {
           date: string
           highlights?: string | null
           follow_ups?: string[]
+          rating?: number | null
+          tags?: string[]
         }
         Update: {
           type?: string
@@ -183,6 +187,8 @@ export type Database = {
           date?: string
           highlights?: string | null
           follow_ups?: string[]
+          rating?: number | null
+          tags?: string[]
         }
         Relationships: []
       }

@@ -38,8 +38,8 @@
   --positive-bg: rgba(74, 158, 110, 0.06);
   --negative: #c45c5c;
   --negative-bg: rgba(196, 92, 92, 0.06);
-  --accent: #4a7deb;
-  --accent-bg: rgba(74, 125, 235, 0.06);
+  --accent: #e07a5f;
+  --accent-bg: rgba(224, 122, 95, 0.06);
 
   /* Typography */
   --font-serif: 'Lora', Georgia, serif;
@@ -801,6 +801,7 @@ img { display: block; max-width: 100%; }
   max-width: 560px;
   max-height: 85vh;
   overflow-y: auto;
+  overscroll-behavior: contain;
   animation: slideUp 200ms ease;
   box-shadow: var(--shadow-lg);
 }

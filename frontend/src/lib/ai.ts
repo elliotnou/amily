@@ -26,7 +26,7 @@ export async function callAI(prompt: string, system?: string, signal?: AbortSign
   return data.text ?? ''
 }
 
-export function buildFriendContext(friend: any, hangouts: any[] = []): string {
+export function buildFriendContext(friend: any, hangouts: any[] = [], impressions: any[] = []): string {
   const lines = [
     `Name: ${friend.name}`,
     friend.location && `Location: ${friend.location}`,
@@ -38,6 +38,7 @@ export function buildFriendContext(friend: any, hangouts: any[] = []): string {
     friend.tags?.length > 0 && `Tags: ${friend.tags.join(', ')}`,
     friend.facts?.length > 0 && `Known facts:\n${friend.facts.map((f: any) => `  - ${f.category}: ${f.value}`).join('\n')}`,
     friend.notes?.length > 0 && `Recent notes:\n${friend.notes.slice(0, 6).map((n: any) => `  - [${n.date}] ${n.text}`).join('\n')}`,
+    impressions.length > 0 && `Impressions:\n${impressions.slice(0, 6).map((imp: any) => `  - [${imp.date}] ${imp.title}: ${imp.body}`).join('\n')}`,
     hangouts.length > 0 && `Past hangouts:\n${hangouts.slice(0, 8).map((h: any) => `  - ${h.type} in ${h.location} (${h.date})${h.highlights ? `: ${h.highlights}` : ''}`).join('\n')}`,
     friend.hangout_count > 0 && `Total hangouts logged: ${friend.hangout_count}`,
   ].filter(Boolean)
@@ -69,14 +70,14 @@ export function buildAllFriendsContext(friends: any[], hangouts: any[]): string 
 }
 
 export const PROMPTS = {
-  giftIdeas: (ctx: string) => `Here is context about my friend:\n${ctx}\n\nSuggest 4-5 specific, personalized gift ideas for them. For each gift give: name, approximate price range, and 1-2 sentences explaining why it suits this specific person. Reference their actual facts and interests. Avoid generic gift suggestions.`,
+  giftIdeas: (ctx: string) => `Here is context about my friend:\n${ctx}\n\nSuggest 4-5 specific, personalized gift ideas for them. For each gift give: name, approximate price range, and 1-2 sentences explaining why it suits this specific person. Reference their actual facts, interests, and impressions where they reveal something meaningful about the person's taste or personality. Avoid generic gift suggestions.`,
 
-  hangoutIdeas: (ctx: string) => `Here is context about my friend:\n${ctx}\n\nSuggest 4 hangout ideas for us. Mix different vibes — active, chill, food, experience. For each: the type of hangout, a specific suggestion (not generic), and why it would work for this specific person. Use their location, interests, and our history together.`,
+  hangoutIdeas: (ctx: string) => `Here is context about my friend:\n${ctx}\n\nSuggest 4 hangout ideas for us. Mix different vibes — active, chill, food, experience. For each: the type of hangout, a specific suggestion (not generic), and why it would work for this specific person. Use their location, interests, and our history together. Draw from impressions if they reveal shared experiences or things we've enjoyed doing together, but don't force it.`,
 
   globalQuery: (ctx: string, question: string) => `Here is my friend network:\n${ctx}\n\nMy question: ${question}\n\nAnswer based on what you know about my friends. Be specific — reference actual names and details from the data above.`,
 
-  friendshipStory: (ctx: string, vibe: string) => `Here is context about my friend:\n${ctx}\n\nWrite a friendship story/narrative about our relationship together. Vibe: ${vibe}.\n\nGuidelines:\n- Write in first person ("I", "we")\n- Reference specific facts, hangouts, notes, and memories from the data\n- Make it feel genuine and personal, not generic\n- 3-4 paragraphs, flowing prose (not bullet points)\n- Capture the essence of the friendship — the highs, the texture of the relationship, what makes it special\n- Wholesome vibe: warm, heartfelt, appreciative tone\n- Funny vibe: playful, self-aware, inside-joke energy\n- Reflective vibe: introspective, meaningful, a bit poetic\n- Epic vibe: dramatic storytelling, like an adventure memoir\n- Raw vibe: honest, unfiltered, real talk`,
+  friendshipStory: (ctx: string, vibe: string) => `Here is context about my friend:\n${ctx}\n\nWrite a friendship story/narrative about our relationship together. Vibe: ${vibe}.\n\nGuidelines:\n- Write in first person ("I", "we")\n- Reference specific facts, hangouts, notes, impressions, and memories from the data\n- Impressions are personal reflections I've written about this friend — weave in the ones that feel emotionally resonant or reveal the texture of the friendship, but skip any that are mundane or don't add to the story\n- Make it feel genuine and personal, not generic\n- 3-4 paragraphs, flowing prose (not bullet points)\n- Capture the essence of the friendship — the highs, the texture of the relationship, what makes it special\n- Wholesome vibe: warm, heartfelt, appreciative tone\n- Funny vibe: playful, self-aware, inside-joke energy\n- Reflective vibe: introspective, meaningful, a bit poetic\n- Epic vibe: dramatic storytelling, like an adventure memoir\n- Raw vibe: honest, unfiltered, real talk`,
 
   friendQuery: (ctx: string, history: string, question: string) =>
-    `You are a thoughtful assistant helping someone reflect on a friendship. Here is context about their friend:\n${ctx}\n${history ? `\nConversation so far:\n${history}\n` : ''}Their question: ${question}\n\nAnswer warmly and personally, referencing specific details from the context where relevant. Be concise.`,
+    `You are a thoughtful assistant helping someone reflect on a friendship. Here is context about their friend:\n${ctx}\n${history ? `\nConversation so far:\n${history}\n` : ''}Their question: ${question}\n\nAnswer warmly and personally, referencing specific details from the context where relevant. Impressions are personal reflections — use them when they're genuinely relevant to the question, not every time. Be concise.`,
 }

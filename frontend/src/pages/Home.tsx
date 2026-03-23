@@ -146,7 +146,7 @@ export default function Home() {
                     <div className="hangout-type-badge">{h.type.slice(0, 3)}</div>
                     <div style={{ flex: 1, minWidth: 0 }}>
                       <div className="flex items-center justify-between" style={{ marginBottom: '4px' }}>
-                        <span style={{ fontWeight: 500, fontSize: '0.9rem' }}>{h.type} — {h.location}</span>
+                        <span style={{ fontWeight: 500, fontSize: '0.9rem' }}>{h.location ? `${h.location} — ${h.type}` : h.type}</span>
                         <span className="text-xs text-muted text-sans">{h.date}</span>
                       </div>
                       {h.hangout_friends.length > 0 && (

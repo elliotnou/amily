@@ -1,4 +1,4 @@
-import { Routes, Route, Navigate } from 'react-router-dom'
+import { Routes, Route, Navigate, useLocation } from 'react-router-dom'
 import { useEffect, useState } from 'react'
 import { useAuth } from './lib/auth'
 import { SidebarProvider, useSidebar } from './lib/SidebarContext'
@@ -17,6 +17,12 @@ import { AIGiftIdeas, AIHangoutIdeas, AIFriendshipStory } from './pages/AI'
 import FriendGroups from './pages/FriendGroups'
 import Upgrade from './pages/Upgrade'
 import Onboarding from './pages/Onboarding'
+
+function ScrollToTop() {
+  const { pathname } = useLocation()
+  useEffect(() => { window.scrollTo(0, 0) }, [pathname])
+  return null
+}
 
 function AppLayout({ children }: { children: React.ReactNode }) {
   const { collapsed } = useSidebar()
@@ -49,6 +55,7 @@ function AuthRoute({ children }: { children: React.ReactNode }) {
 export default function App() {
   return (
     <SidebarProvider>
+      <ScrollToTop />
       <Routes>
         {/* Public */}
         <Route path="/" element={<Landing />} />

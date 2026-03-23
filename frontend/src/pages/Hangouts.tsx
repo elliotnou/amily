@@ -201,8 +201,8 @@ function HangoutsCalendar({ hangouts, bannerMap }: { hangouts: ReturnType<typeof
                       : <div style={{ width: 44, height: 44, borderRadius: 'var(--radius-md)', background: accent, flexShrink: 0 }} />
                     }
                     <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.7rem', fontWeight: 600, color: accent, textTransform: 'uppercase', letterSpacing: '0.06em', marginBottom: 2 }}>{h.type}</div>
-                      <div style={{ fontFamily: 'var(--font-serif)', fontSize: '0.95rem', fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.location}</div>
+                      <div style={{ fontFamily: 'var(--font-serif)', fontSize: '0.95rem', fontWeight: 500, color: 'var(--text-primary)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{h.location || h.type}</div>
+                      {h.location && <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.7rem', fontWeight: 600, color: accent, textTransform: 'uppercase', letterSpacing: '0.06em', marginTop: 2 }}>{h.type}</div>}
                       {h.hangout_friends.length > 0 && <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.72rem', color: 'var(--text-muted)', marginTop: 2 }}>{h.hangout_friends.map(hf => hf.friend_name.split(' ')[0]).join(', ')}</div>}
                     </div>
                     <span style={{ color: 'var(--text-muted)', fontSize: '1rem', flexShrink: 0 }}>›</span>
@@ -251,8 +251,10 @@ export default function Hangouts() {
   const [hLocation, setHLocation] = useState('')
   const [hHighlights, setHHighlights] = useState('')
   const [hSelectedFriends, setHSelectedFriends] = useState<string[]>([])
-  const [hSelectedGroups, setHSelectedGroups] = useState<string[]>([])
+  const [hSelectedGroup, setHSelectedGroup] = useState<string | null>(null)
+  const [hWhoSearch, setHWhoSearch] = useState('')
   const [hFeeling, setHFeeling] = useState('')
+  const [hRating, setHRating] = useState(0)
   const [album, setAlbum] = useState<AlbumPhoto[]>([])
   const [saving, setSaving] = useState(false)
 
@@ -260,7 +262,7 @@ export default function Hangouts() {
     setHSelectedFriends(prev => prev.includes(id) ? prev.filter(f => f !== id) : [...prev, id])
 
   const toggleGroup = (id: string) =>
-    setHSelectedGroups(prev => prev.includes(id) ? prev.filter(g => g !== id) : [...prev, id])
+    setHSelectedGroup(prev => prev === id ? null : id)
 
   const handlePhotoAdd = async (files: FileList) => {
     const slots = MAX_PHOTOS - album.length
@@ -286,7 +288,8 @@ export default function Hangouts() {
 
   const resetForm = () => {
     setHType(''); setHLocation(''); setHHighlights('')
-    setHSelectedFriends([]); setHSelectedGroups([]); setHFeeling(''); setAlbum([])
+    setHSelectedFriends([]); setHSelectedGroup(null); setHWhoSearch(''); setHFeeling('')
+    setHRating(0); setAlbum([])
     setHDate(new Date().toISOString().slice(0, 10))
   }
 
@@ -296,15 +299,16 @@ export default function Hangouts() {
     if (!hType.trim() || !hLocation.trim() || anyUploading) return
     setSaving(true)
     // Collect all friend IDs: individually selected + members of selected groups (deduped)
-    const groupMemberIds = groups
-      .filter(g => hSelectedGroups.includes(g.id))
-      .flatMap(g => g.memberIds)
-    const allFriendIds = Array.from(new Set([...hSelectedFriends, ...groupMemberIds]))
+    const selectedGroup = groups.find(g => g.id === hSelectedGroup)
+    const groupMemberIds = selectedGroup?.memberIds ?? []
+    const allFriendIds = hSelectedGroup
+      ? groupMemberIds
+      : hSelectedFriends
 
     const result = await createHangout(
-      { type: hType, location: hLocation, date: hDate, highlights: hHighlights || undefined },
+      { type: hType, location: hLocation, date: hDate, highlights: hHighlights || undefined, rating: hRating || null },
       allFriendIds.map(id => ({ id, feeling_label: hFeeling || undefined })),
-      hSelectedGroups
+      hSelectedGroup ? [hSelectedGroup] : []
     )
     if (result?.id && user && album.length > 0) {
       const rows = album.filter(p => p.url).map(p => ({ hangout_id: result.id, url: p.url!, user_id: user.id, caption: null, friend_id: null }))
@@ -352,7 +356,7 @@ export default function Hangouts() {
             {[
               { label: 'Total', value: hangouts.length },
               { label: 'This month', value: thisMonth },
-              { label: 'With photos', value: Object.keys(bannerMap).length },
+              { label: 'Words journalled', value: hangouts.reduce((sum, h) => sum + (h.highlights ? h.highlights.trim().split(/\s+/).filter(Boolean).length : 0), 0) },
             ].map(s => (
               <div key={s.label} style={{
                 flex: 1, padding: '14px 18px', background: 'var(--bg-card)',
@@ -377,7 +381,7 @@ export default function Hangouts() {
 
       {/* List view */}
       {view === 'list' && (loading ? (
-        <div style={{ padding: 'var(--space-2xl)', textAlign: 'center', color: 'var(--text-muted)', fontFamily: 'var(--font-sans)', fontSize: '0.88rem' }}>Loading…</div>
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '40vh' }}><p style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', color: 'var(--text-muted)' }}>Loading…</p></div>
       ) : hangouts.length === 0 ? (
         <div style={{
           padding: 'var(--space-3xl) var(--space-2xl)', textAlign: 'center',
@@ -415,19 +419,19 @@ export default function Hangouts() {
                     {/* Strong bottom gradient for text legibility */}
                     <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0.05) 0%, rgba(0,0,0,0.25) 45%, rgba(0,0,0,0.72) 100%)' }} />
 
-                    {/* Type badge top-left */}
-                    <div style={{
+                    {/* Location badge top-left */}
+                    {h.location && <div style={{
                       position: 'absolute', top: 12, left: 12,
                       background: 'rgba(0,0,0,0.40)', backdropFilter: 'blur(10px)', WebkitBackdropFilter: 'blur(10px)',
                       border: '1px solid rgba(255,255,255,0.18)', borderRadius: 'var(--radius-full)', padding: '3px 10px',
                       color: 'white', fontFamily: 'var(--font-sans)', fontSize: '0.6rem',
                       fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
-                    }}>{h.type}</div>
+                    }}>{h.location}</div>}
 
                     {/* Bottom text + avatars ON the image */}
                     <div style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '14px 14px 12px', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', gap: 10 }}>
                       <div style={{ minWidth: 0, flex: 1 }}>
-                        <div style={{ fontFamily: 'var(--font-serif)', fontSize: '1rem', fontWeight: 600, color: 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 3, textShadow: '0 1px 6px rgba(0,0,0,0.5)' }}>{h.location}</div>
+                        <div style={{ fontFamily: 'var(--font-serif)', fontSize: '1rem', fontWeight: 600, color: 'white', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 3, textShadow: '0 1px 6px rgba(0,0,0,0.5)' }}>{h.type}</div>
                         <div style={{ display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
                           <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.7rem', color: 'rgba(255,255,255,0.72)' }}>{h.date}</span>
                           {h.hangout_groups.map(hg => (
@@ -467,14 +471,14 @@ export default function Hangouts() {
                   <>
                     {/* No-banner: colored header area */}
                     <div style={{ position: 'relative', height: 90, flexShrink: 0, overflow: 'hidden', background: `linear-gradient(140deg, ${accent}22 0%, ${accent}08 100%)` }}>
-                      {/* Type badge */}
-                      <div style={{
+                      {/* Location badge */}
+                      {h.location && <div style={{
                         position: 'absolute', top: 12, left: 12,
                         background: `${accent}18`, border: `1px solid ${accent}30`,
                         borderRadius: 'var(--radius-full)', padding: '3px 10px',
                         color: accent, fontFamily: 'var(--font-sans)', fontSize: '0.6rem',
                         fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase',
-                      }}>{h.type}</div>
+                      }}>{h.location}</div>}
                       <div style={{ position: 'absolute', right: 14, bottom: 4, fontSize: '3.5rem', color: accent, opacity: 0.1, lineHeight: 1, userSelect: 'none', fontFamily: 'var(--font-serif)' }}>
                         {h.type[0]?.toUpperCase()}
                       </div>
@@ -484,7 +488,7 @@ export default function Hangouts() {
                     <div style={{ padding: '12px 14px 14px', background: 'var(--bg-card)' }}>
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: 10, marginBottom: h.hangout_groups.length > 0 ? 8 : 0 }}>
                         <div style={{ minWidth: 0, flex: 1 }}>
-                          <div style={{ fontFamily: 'var(--font-serif)', fontSize: '0.97rem', fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 3 }}>{h.location}</div>
+                          <div style={{ fontFamily: 'var(--font-serif)', fontSize: '0.97rem', fontWeight: 500, color: 'var(--text)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', marginBottom: 3 }}>{h.type}</div>
                           <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.7rem', color: 'var(--text-muted)' }}>{h.date}</div>
                         </div>
                         {h.hangout_friends.length > 0 && (
@@ -511,7 +515,7 @@ export default function Hangouts() {
                         )}
                       </div>
                       {h.hangout_groups.length > 0 && (
-                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4 }}>
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: 4, paddingBottom: 6 }}>
                           {h.hangout_groups.map(hg => (
                             <span key={hg.id} style={{
                               padding: '2px 8px', borderRadius: 'var(--radius-sm)',
@@ -584,86 +588,107 @@ export default function Hangouts() {
           <input ref={photoInputRef} type="file" accept="image/*" multiple style={{ display: 'none' }} onChange={e => e.target.files && handlePhotoAdd(e.target.files)} />
         </div>
 
+        <div className="form-group">
+          <label className="form-label">Title *</label>
+          <input className="form-input" placeholder="e.g. Late night rooftop hang" value={hType} onChange={e => setHType(e.target.value)} autoFocus style={{ fontSize: '1rem' }} />
+        </div>
+
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 'var(--space-md)' }}>
           <div className="form-group">
             <label className="form-label">Date</label>
             <input className="form-input" type="date" value={hDate} onChange={e => setHDate(e.target.value)} />
           </div>
           <div className="form-group">
-            <label className="form-label">Type *</label>
-            <input className="form-input" placeholder="Dinner, Coffee, Hike…" value={hType} onChange={e => setHType(e.target.value)} />
+            <label className="form-label">Location</label>
+            <input className="form-input" placeholder="Where?" value={hLocation} onChange={e => setHLocation(e.target.value)} />
+          </div>
+        </div>
+
+        {/* Rating */}
+        <div className="form-group">
+          <label className="form-label" style={{ display: 'flex', justifyContent: 'space-between' }}>
+            <span>Rating <span style={{ fontWeight: 400, color: 'var(--text-muted)' }}>— optional</span></span>
+            {hRating > 0 && <span style={{ fontFamily: 'var(--font-serif)', fontWeight: 700, color: 'var(--accent)', fontSize: '0.92rem' }}>{hRating}/10</span>}
+          </label>
+          <div style={{ display: 'flex', background: 'var(--bg)', borderRadius: 'var(--radius-full)', border: '1px solid var(--border)', overflow: 'hidden' }}>
+            {[1,2,3,4,5,6,7,8,9,10].map(n => (
+              <button
+                key={n}
+                type="button"
+                onClick={() => setHRating(hRating === n ? 0 : n)}
+                style={{
+                  flex: 1, height: 42, border: 'none', cursor: 'pointer', padding: 0,
+                  background: hRating >= n ? 'var(--accent)' : 'transparent',
+                  color: hRating >= n ? 'white' : 'var(--text-muted)',
+                  fontFamily: 'var(--font-serif)', fontSize: '0.92rem', fontWeight: hRating === n ? 700 : 500,
+                  transition: 'background 0.15s, color 0.15s',
+                }}
+              >{n}</button>
+            ))}
           </div>
         </div>
 
         <div className="form-group">
-          <label className="form-label">Location *</label>
-          <input className="form-input" placeholder="Where?" value={hLocation} onChange={e => setHLocation(e.target.value)} />
-        </div>
-
-        <div className="form-group">
           <label className="form-label">Who was there</label>
-
-          {/* Groups — tagged as units */}
-          {groups.length > 0 && (
-            <div style={{ marginBottom: 10 }}>
-              <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.64rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Groups</div>
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
-                {groups.map(g => {
-                  const selected = hSelectedGroups.includes(g.id)
-                  const memberNames = g.memberIds.map(id => friends.find(f => f.id === id)?.name.split(' ')[0]).filter(Boolean)
-                  return (
-                    <div key={g.id} style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                      <button onClick={() => toggleGroup(g.id)}
-                        style={{
-                          padding: '5px 12px', borderRadius: 'var(--radius-md)',
-                          border: selected ? `1.5px solid ${g.color}` : `1.5px solid ${g.color}40`,
-                          background: selected ? `${g.color}18` : 'transparent',
-                          color: selected ? g.color : `${g.color}90`,
-                          fontFamily: 'var(--font-sans)', fontSize: '0.75rem', fontWeight: 600,
-                          cursor: 'pointer', transition: 'all 0.15s',
-                          display: 'flex', alignItems: 'center', gap: 5, flexShrink: 0,
-                        }}>
-                        <span style={{ fontSize: '0.85rem' }}>{g.symbol}</span>
-                        {g.name}
-                      </button>
-                      {selected && memberNames.length > 0 && (
-                        <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.72rem', color: 'var(--text-muted)' }}>
-                          — {memberNames.join(', ')}
-                        </span>
-                      )}
-                    </div>
-                  )
-                })}
-              </div>
-            </div>
-          )}
-
-          {/* Individual friends — hide members already covered by selected groups */}
-          {friends.length > 0 && (() => {
-            const coveredIds = new Set(
-              groups.filter(g => hSelectedGroups.includes(g.id)).flatMap(g => g.memberIds)
-            )
-            const uncoveredFriends = friends.filter(f => !coveredIds.has(f.id))
-            if (uncoveredFriends.length === 0 && hSelectedFriends.length === 0) return null
-            return (
-              <div>
-                {groups.length > 0 && <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.64rem', fontWeight: 700, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em', marginBottom: 6 }}>Individuals</div>}
-                <div className="pill-wrap">
-                  {uncoveredFriends.map(f => {
-                    const selected = hSelectedFriends.includes(f.id)
-                    return (
-                      <button key={f.id} className="pill pill-default"
-                        style={{ cursor: 'pointer', opacity: selected ? 1 : 0.4 }}
-                        onClick={() => toggleFriend(f.id)}>
-                        <span style={{ width: 10, height: 10, borderRadius: '50%', background: f.avatar_color, display: 'inline-block', verticalAlign: 'middle', marginRight: 4 }} />
-                        {f.name.split(' ')[0]}
-                      </button>
-                    )
-                  })}
+          <input
+            className="form-input"
+            placeholder="Search groups or friends…"
+            value={hWhoSearch}
+            onChange={e => setHWhoSearch(e.target.value)}
+            style={{ marginBottom: 8, fontSize: '0.88rem' }}
+          />
+          <div style={{ borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', overflow: 'hidden', maxHeight: 260, overflowY: 'auto', overscrollBehavior: 'contain' }}>
+            {/* Groups section */}
+            {groups.filter(g => g.name.toLowerCase().includes(hWhoSearch.toLowerCase())).map(g => {
+              const selected = hSelectedGroup === g.id
+              const memberNames = g.memberIds.map(id => friends.find(f => f.id === id)?.name.split(' ')[0]).filter(Boolean)
+              return (
+                <div key={g.id} onClick={() => toggleGroup(g.id)} style={{
+                  display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
+                  cursor: 'pointer', borderBottom: '1px solid var(--border)',
+                  background: selected ? `${g.color}0c` : 'transparent',
+                  transition: 'background 120ms',
+                }}>
+                  <div style={{ width: 34, height: 34, borderRadius: 8, background: `${g.color}18`, border: `1px solid ${g.color}30`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, color: g.color, fontSize: '1rem' }}>{g.symbol}</div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: 'var(--font-serif)', fontSize: '0.92rem', fontWeight: 500, color: 'var(--text)' }}>{g.name}</div>
+                    {memberNames.length > 0 && <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.72rem', color: 'var(--text-muted)', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{memberNames.join(', ')}</div>}
+                  </div>
+                  <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${selected ? g.color : 'var(--border)'}`, background: selected ? g.color : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 150ms' }}>
+                    {selected && <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
+                  </div>
                 </div>
-              </div>
-            )
-          })()}
+              )
+            })}
+            {/* Individual friends — hidden when a group is selected */}
+            {!hSelectedGroup && friends.filter(f => f.name.toLowerCase().includes(hWhoSearch.toLowerCase())).map(f => {
+              const selected = hSelectedFriends.includes(f.id)
+              return (
+                <div key={f.id} onClick={() => toggleFriend(f.id)} style={{
+                  display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',
+                  cursor: 'pointer', borderBottom: '1px solid var(--border)',
+                  background: selected ? 'var(--accent-bg)' : 'transparent',
+                  transition: 'background 120ms',
+                }}>
+                  <div style={{ width: 34, height: 34, borderRadius: '50%', background: f.avatar_color, overflow: 'hidden', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                    {f.avatar_url ? <img src={f.avatar_url} alt={f.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} /> : <span style={{ fontSize: '0.65rem', color: 'white', fontFamily: 'var(--font-serif)', fontWeight: 500 }}>{f.initials}</span>}
+                  </div>
+                  <div style={{ flex: 1, minWidth: 0 }}>
+                    <div style={{ fontFamily: 'var(--font-serif)', fontSize: '0.92rem', fontWeight: 500, color: 'var(--text)' }}>{f.name}</div>
+                    {f.location && <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.72rem', color: 'var(--text-muted)' }}>{f.location}</div>}
+                  </div>
+                  <div style={{ width: 20, height: 20, borderRadius: '50%', border: `2px solid ${selected ? 'var(--accent)' : 'var(--border)'}`, background: selected ? 'var(--accent)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, transition: 'all 150ms' }}>
+                    {selected && <svg width={10} height={10} viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>}
+                  </div>
+                </div>
+              )
+            })}
+            {/* Empty state */}
+            {groups.filter(g => g.name.toLowerCase().includes(hWhoSearch.toLowerCase())).length === 0 &&
+             friends.filter(f => f.name.toLowerCase().includes(hWhoSearch.toLowerCase())).length === 0 && (
+              <div style={{ padding: 16, textAlign: 'center', fontFamily: 'var(--font-sans)', fontSize: '0.82rem', color: 'var(--text-muted)' }}>No results</div>
+            )}
+          </div>
         </div>
 
         <div className="form-group">

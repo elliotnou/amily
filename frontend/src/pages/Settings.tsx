@@ -3,7 +3,6 @@ import { useNavigate } from 'react-router-dom'
 import { useAuth } from '../lib/auth'
 import { supabase } from '../lib/supabase'
 import { useSubscription } from '../lib/hooks/useSubscription'
-import { LogoIcon } from '../components/Icons'
 
 type SettingsTab = 'account' | 'subscription'
 
@@ -118,11 +117,9 @@ export default function Settings() {
           {/* About */}
           <div className="card">
             <div className="flex items-center gap-md" style={{ marginBottom: 8 }}>
-              <div style={{ width: 36, height: 36, borderRadius: 10, background: 'var(--text)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'white' }}>
-                <LogoIcon size={22} />
-              </div>
+              <img src="/assets/pagelogo.png" alt="amily" style={{ width: 36, height: 36, objectFit: 'contain' }} />
               <div>
-                <div style={{ fontWeight: 500, fontFamily: 'var(--font-serif)' }}>amiro</div>
+                <div style={{ fontWeight: 500, fontFamily: 'var(--font-serif)' }}>amily</div>
                 <div className="text-xs text-muted text-sans">v0.1.0</div>
               </div>
             </div>

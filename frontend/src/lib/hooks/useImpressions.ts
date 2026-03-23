@@ -17,6 +17,7 @@ export function useImpressions(friendId: string | undefined) {
       .select('*')
       .eq('friend_id', friendId)
       .order('date', { ascending: false })
+      .order('created_at', { ascending: false })
     setImpressions(data ?? [])
     setLoading(false)
   }, [friendId, user])
@@ -35,10 +36,15 @@ export function useImpressions(friendId: string | undefined) {
     await load()
   }
 
+  const updateImpression = async (id: string, title: string, body: string) => {
+    await supabase.from('impressions').update({ title, body }).eq('id', id)
+    setImpressions(prev => prev.map(i => i.id === id ? { ...i, title, body } : i))
+  }
+
   const deleteImpression = async (id: string) => {
     await supabase.from('impressions').delete().eq('id', id)
     setImpressions(prev => prev.filter(i => i.id !== id))
   }
 
-  return { impressions, loading, createImpression, deleteImpression }
+  return { impressions, loading, createImpression, updateImpression, deleteImpression }
 }
