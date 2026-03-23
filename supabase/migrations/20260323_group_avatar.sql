@@ -1,0 +1,1 @@
+ALTER TABLE friend_groups ADD COLUMN IF NOT EXISTS avatar_url text DEFAULT NULL;

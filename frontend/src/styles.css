@@ -1246,6 +1246,29 @@ img { display: block; max-width: 100%; }
 .font-italic { font-style: italic; }
 .w-full { width: 100%; }
 
+/* ── Birthday badge tooltip ── */
+.bday-badge { position: relative; }
+.bday-badge::after {
+  content: attr(data-tooltip);
+  position: absolute;
+  bottom: calc(100% + 7px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: rgba(0,0,0,0.78);
+  backdrop-filter: blur(8px);
+  color: white;
+  font-family: var(--font-sans);
+  font-size: 0.68rem;
+  font-weight: 500;
+  white-space: nowrap;
+  padding: 4px 9px;
+  border-radius: var(--radius-md);
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 150ms ease;
+}
+.bday-badge:hover::after { opacity: 1; }
+
 /* ── Scrollbar ── */
 ::-webkit-scrollbar { width: 6px; }
 ::-webkit-scrollbar-track { background: transparent; }

@@ -365,6 +365,7 @@ export type Database = {
           color: string
           symbol: string
           description: string | null
+          avatar_url: string | null
           created_at: string
         }
         Insert: {
@@ -374,12 +375,14 @@ export type Database = {
           color?: string
           symbol?: string
           description?: string | null
+          avatar_url?: string | null
         }
         Update: {
           name?: string
           color?: string
           symbol?: string
           description?: string | null
+          avatar_url?: string | null
         }
         Relationships: []
       }

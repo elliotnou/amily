@@ -20,6 +20,15 @@ import { callAI, buildFriendContext, PROMPTS } from '../lib/ai'
 
 const MET_HOW_OPTIONS = ['School','Work','Mutual friend','Online','Neighborhood','Event','Travel','Family','Other']
 
+function daysUntilBirthday(birthday: string): number | null {
+  const d = new Date(birthday)
+  if (isNaN(d.getTime())) return null
+  const today = new Date()
+  const next = new Date(today.getFullYear(), d.getMonth(), d.getDate())
+  if (next < today) next.setFullYear(today.getFullYear() + 1)
+  return Math.round((next.getTime() - today.setHours(0,0,0,0)) / 86400000)
+}
+
 function lightenHex(hex: string, amount: number): string {
   const r = Math.min(255, parseInt(hex.slice(1, 3), 16) + amount)
   const g = Math.min(255, parseInt(hex.slice(3, 5), 16) + amount)
@@ -59,7 +68,63 @@ function IconExpand({ size = 14 }: { size?: number }) {
   )
 }
 
-type Tab = 'overview' | 'impressions' | 'gallery' | 'gifts' | 'ai'
+type Tab = 'overview' | 'impressions' | 'gallery' | 'ai'
+
+function renderBold(text: string) {
+  const parts = text.split(/(\*\*[^*]+\*\*)/)
+  return parts.map((p, i) =>
+    p.startsWith('**') && p.endsWith('**')
+      ? <strong key={i}>{p.slice(2, -2)}</strong>
+      : p
+  )
+}
+
+function renderInline(text: string): React.ReactNode[] {
+  return text.split(/(\*\*[^*\n]+\*\*|\*[^*\n]+\*)/g).map((part, i) => {
+    if (part.startsWith('**') && part.endsWith('**'))
+      return <strong key={i} style={{ fontWeight: 600 }}>{part.slice(2, -2)}</strong>
+    if (part.startsWith('*') && part.endsWith('*'))
+      return <em key={i}>{part.slice(1, -1)}</em>
+    return part
+  })
+}
+
+function ChatMessage({ text }: { text: string }) {
+  // Normalise inline numbered lists ("...text. 2. Next...") into line breaks
+  const normalised = text
+    .replace(/\s+(\d+)\.\s+/g, '\n$1. ')
+    .replace(/^\s*/, '')
+
+  const lines = normalised.split('\n')
+  const nodes: React.ReactNode[] = []
+
+  lines.forEach((line, i) => {
+    const numbered = line.match(/^(\d+)\.\s+(.*)/)
+    const bullet = line.match(/^[-•]\s+(.*)/)
+
+    if (numbered) {
+      nodes.push(
+        <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+          <span style={{ flexShrink: 0, fontFamily: 'var(--font-sans)', fontSize: '0.8rem', fontWeight: 700, color: 'var(--text-muted)', minWidth: 16, paddingTop: 2 }}>{numbered[1]}.</span>
+          <span>{renderInline(numbered[2])}</span>
+        </div>
+      )
+    } else if (bullet) {
+      nodes.push(
+        <div key={i} style={{ display: 'flex', gap: 8, marginBottom: 6 }}>
+          <span style={{ flexShrink: 0, paddingTop: 2 }}>·</span>
+          <span>{renderInline(bullet[1])}</span>
+        </div>
+      )
+    } else if (!line.trim()) {
+      nodes.push(<div key={i} style={{ height: 6 }} />)
+    } else {
+      nodes.push(<p key={i} style={{ margin: '0 0 4px' }}>{renderInline(line)}</p>)
+    }
+  })
+
+  return <div style={{ fontFamily: 'var(--font-serif)', fontSize: '0.9rem', lineHeight: 1.75 }}>{nodes}</div>
+}
 
 function FreshnessRing({ percentage, color, size = 140, trackColor }: { percentage: number; color: string; size?: number; trackColor?: string }) {
   const strokeWidth = size > 100 ? 8 : 6
@@ -275,7 +340,7 @@ export default function FriendProfile() {
   if (loading) return <LoadingScreen />
   if (!friend) return <div className="page-container"><p style={{ color: 'var(--text-muted)', fontFamily: 'var(--font-sans)' }}>Friend not found.</p></div>
 
-  const tabs: Tab[] = ['overview', 'impressions', 'gallery', 'gifts', 'ai']
+  const tabs: Tab[] = ['overview', 'impressions', 'gallery', 'ai']
 
   const friendContext = friend ? buildFriendContext(friend, friendHangouts, impressions) : ''
 
@@ -302,8 +367,8 @@ export default function FriendProfile() {
   }
 
   const handleQuickAction = (action: string, vibe?: string) => {
-    if (action === 'gifts') sendAIMessage('Give me gift ideas', PROMPTS.giftIdeas(friendContext))
-    else if (action === 'hangouts') sendAIMessage('Suggest hangout ideas', PROMPTS.hangoutIdeas(friendContext))
+    if (action === 'hangouts') sendAIMessage('Suggest hangout ideas', PROMPTS.hangoutIdeas(friendContext))
+    else if (action === 'gifts') sendAIMessage('Suggest gift ideas', PROMPTS.giftIdeas(friendContext))
     else if (action === 'story') sendAIMessage(`Write our friendship story (${vibe || 'Wholesome'})`, PROMPTS.friendshipStory(friendContext, vibe || 'Wholesome'))
   }
   const freshness = daysSinceContact != null
@@ -434,10 +499,10 @@ export default function FriendProfile() {
                 {[
                   { label: tierLabel(friend.tier) },
                   { label: `day ${computedDayCount.toLocaleString()}`, serif: true },
-                  friend.birthday ? { label: friend.birthday, birthday: true } : null,
+                  friend.birthday ? { label: friend.birthday, birthday: true, daysLeft: daysUntilBirthday(friend.birthday) } : null,
                   friend.ai_label ? { label: friend.ai_label, bold: true } : null,
                 ].filter(Boolean).map((badge, i) => (
-                  <span key={i} style={{ padding: '3px 10px', borderRadius: 'var(--radius-full)', background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.22)', fontSize: '0.7rem', fontFamily: badge!.serif ? 'var(--font-serif)' : 'var(--font-sans)', fontWeight: badge!.bold ? 600 : 500, fontStyle: badge!.serif ? 'italic' : 'normal', color: 'white', display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+                  <span key={i} className={badge!.birthday && badge!.daysLeft != null ? 'bday-badge' : undefined} data-tooltip={badge!.birthday && badge!.daysLeft != null ? (badge!.daysLeft === 0 ? 'Today!' : `${badge!.daysLeft} day${badge!.daysLeft === 1 ? '' : 's'} away`) : undefined} style={{ padding: '3px 10px', borderRadius: 'var(--radius-full)', background: 'rgba(255,255,255,0.18)', border: '1px solid rgba(255,255,255,0.22)', fontSize: '0.7rem', fontFamily: badge!.serif ? 'var(--font-serif)' : 'var(--font-sans)', fontWeight: badge!.bold ? 600 : 500, fontStyle: badge!.serif ? 'italic' : 'normal', color: 'white', display: 'inline-flex', alignItems: 'center', gap: 5, cursor: 'default' }}>
                     {badge!.birthday && (
                       <svg width={11} height={11} viewBox="0 0 24 24" fill="none" stroke="rgba(255,255,255,0.85)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
                         <path d="M20 21v-8a2 2 0 0 0-2-2H6a2 2 0 0 0-2 2v8" />
@@ -743,15 +808,6 @@ export default function FriendProfile() {
           )}
 
           {/* GIFTS */}
-          {activeTab === 'gifts' && (
-            <div className="animate-in">
-              <button className="btn btn-ai" style={{ marginBottom: 'var(--space-xl)' }} onClick={() => { setActiveTab('ai'); handleQuickAction('gifts') }}>AI gift suggestions</button>
-              <div style={{ borderTop: `1px solid ${bannerColor}22`, paddingTop: 'var(--space-xl)' }}>
-                <InnerLabel accent={bannerColor} fontFamily={fontFamily} style={{ display: 'flex', marginBottom: 'var(--space-lg)' }}>Gift history</InnerLabel>
-                <div className="empty-state"><p>No gifts logged yet.</p></div>
-              </div>
-            </div>
-          )}
 
           {/* AI CHAT */}
           {activeTab === 'ai' && (
@@ -775,8 +831,9 @@ export default function FriendProfile() {
                           Ask anything about {friend.name}…
                         </div>
                         <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8, justifyContent: 'center' }}>
-                          <button className="btn btn-ai btn-sm" onClick={() => handleQuickAction('gifts')}>Gift ideas</button>
+
                           <button className="btn btn-ai btn-sm" onClick={() => handleQuickAction('hangouts')}>Hangout ideas</button>
+                          <button className="btn btn-ai btn-sm" onClick={() => handleQuickAction('gifts')}>Gift ideas</button>
                           <button className="btn btn-ai btn-sm" onClick={() => setShowStoryVibes(v => !v)}>Friendship story</button>
                         </div>
                         {showStoryVibes && (
@@ -803,15 +860,16 @@ export default function FriendProfile() {
                             color: msg.role === 'user' ? 'white' : 'var(--text)',
                             fontFamily: 'var(--font-serif)', fontSize: '0.9rem', lineHeight: 1.7,
                           }}>
-                            {msg.text}
+                            {msg.role === 'assistant' ? <ChatMessage text={msg.text} /> : renderBold(msg.text)}
                           </div>
                         )}
                       </div>
                     ))}
                     {chatLoading && (
                       <div style={{ display: 'flex', justifyContent: 'flex-start' }}>
-                        <div style={{ padding: '10px 16px', borderRadius: 'var(--radius-lg)', background: 'var(--bg)', border: '1px solid var(--border)', fontFamily: 'var(--font-sans)', fontSize: '0.8rem', color: 'var(--text-muted)' }}>
-                          thinking…
+                        <div style={{ padding: '10px 18px 10px 12px', borderRadius: 'var(--radius-lg)', background: 'white', display: 'flex', alignItems: 'center', gap: 4 }}>
+                          <img src="/assets/loading.gif" alt="" style={{ width: 56, height: 56, objectFit: 'contain', mixBlendMode: 'multiply' }} />
+                          <span style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', fontSize: '1rem', color: 'var(--text-muted)', marginTop: 8, marginLeft: -4 }}>Thinking…</span>
                         </div>
                       </div>
                     )}
@@ -985,7 +1043,7 @@ export default function FriendProfile() {
             ) : (
               <>
                 <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: 'var(--space-lg)' }}>{imp.date}</p>
-                <div style={{ fontFamily: 'var(--font-serif)', fontSize: '0.97rem', lineHeight: 1.9, color: 'var(--text)', whiteSpace: 'pre-wrap', marginBottom: 'var(--space-xl)' }}>{imp.body}</div>
+                <div style={{ fontFamily: 'var(--font-serif)', fontSize: '0.97rem', lineHeight: 1.9, color: 'var(--text)', whiteSpace: 'pre-wrap', marginBottom: 'var(--space-xl)' }}>{renderBold(imp.body)}</div>
                 <div className="modal-actions" style={{ justifyContent: 'space-between' }}>
                   {isConfirming ? (
                     <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>

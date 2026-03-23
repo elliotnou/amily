@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import { useFriendGroups } from '../lib/hooks/useFriendGroups'
 import { useFriends } from '../lib/hooks/useFriends'
 import Modal from '../components/Modal'
+import { uploadImage } from '../lib/cloudinary'
 import type { FriendGroupWithMembers } from '../lib/hooks/useFriendGroups'
 import type { Database } from '../lib/database.types'
 
@@ -68,7 +69,7 @@ function GroupCard({ group, members, onClick }: {
         background: `linear-gradient(140deg, ${group.color}14 0%, ${group.color}05 100%)`,
         border: `1px solid ${hovered ? group.color + '60' : group.color + '28'}`,
         borderRadius: 'var(--radius-xl)',
-        padding: '22px 24px 20px',
+        padding: group.avatar_url ? '0 24px 20px' : '22px 24px 20px',
         cursor: 'pointer',
         overflow: 'hidden',
         transition: 'transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease',
@@ -82,40 +83,48 @@ function GroupCard({ group, members, onClick }: {
         justifyContent: 'space-between',
       }}
     >
-      {/* Watermark symbol */}
-      <div style={{
-        position: 'absolute',
-        right: 16,
-        bottom: 10,
-        fontSize: '5.5rem',
-        color: group.color,
-        opacity: 0.1,
-        lineHeight: 1,
-        userSelect: 'none',
-        pointerEvents: 'none',
-        transition: 'opacity 200ms',
-        ...(hovered ? { opacity: 0.18 } : {}),
-      }}>
-        {group.symbol}
-      </div>
-
-      {/* Top: symbol badge + name */}
-      <div>
+      {/* Watermark symbol (only when no banner) */}
+      {!group.avatar_url && (
         <div style={{
-          display: 'inline-flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          width: 36,
-          height: 36,
-          borderRadius: 'var(--radius-md)',
-          background: `${group.color}18`,
-          border: `1px solid ${group.color}30`,
+          position: 'absolute',
+          right: 16,
+          bottom: 10,
+          fontSize: '5.5rem',
           color: group.color,
-          fontSize: '1.1rem',
-          marginBottom: 14,
+          opacity: hovered ? 0.18 : 0.1,
+          lineHeight: 1,
+          userSelect: 'none',
+          pointerEvents: 'none',
+          transition: 'opacity 200ms',
         }}>
           {group.symbol}
         </div>
+      )}
+
+      {/* Banner image */}
+      {group.avatar_url && (
+        <div style={{
+          position: 'absolute', top: 0, left: 0, right: 0,
+          height: 120, overflow: 'hidden',
+          borderRadius: 'var(--radius-xl) var(--radius-xl) 0 0',
+        }}>
+          <img src={group.avatar_url} alt={group.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+          <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(to bottom, transparent 40%, ${group.color}22 100%)` }} />
+        </div>
+      )}
+
+      {/* Top: symbol badge + name */}
+      <div style={{ paddingTop: group.avatar_url ? 132 : 0 }}>
+        {!group.avatar_url && (
+          <div style={{
+            display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+            width: 36, height: 36, borderRadius: 'var(--radius-md)',
+            background: `${group.color}18`, border: `1px solid ${group.color}30`,
+            color: group.color, fontSize: '1.1rem', marginBottom: 14,
+          }}>
+            {group.symbol}
+          </div>
+        )}
         <div style={{ fontFamily: 'var(--font-serif)', fontSize: '1.25rem', fontWeight: 600, color: 'var(--text)', lineHeight: 1.2, marginBottom: 4 }}>
           {group.name}
         </div>
@@ -136,7 +145,7 @@ function GroupCard({ group, members, onClick }: {
 interface FlowProps {
   allFriends: FriendRow[]
   initialGroup?: FriendGroupWithMembers
-  onSave: (name: string, color: string, symbol: string, friendIds: string[]) => Promise<void>
+  onSave: (name: string, color: string, symbol: string, friendIds: string[], avatarUrl: string | null) => Promise<void>
   onClose: () => void
 }
 
@@ -187,6 +196,9 @@ function GroupFlow({ allFriends, initialGroup, onSave, onClose }: FlowProps) {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set(initialGroup?.memberIds ?? []))
   const [friendSearch, setFriendSearch] = useState('')
   const [saving, setSaving] = useState(false)
+  const [avatarPreview, setAvatarPreview] = useState<string | null>(initialGroup?.avatar_url ?? null)
+  const [avatarFile, setAvatarFile] = useState<File | null>(null)
+  const avatarInputRef = useRef<HTMLInputElement>(null)
   const overlayMousedown = useRef(false)
 
   const isEdit = !!initialGroup
@@ -202,10 +214,21 @@ function GroupFlow({ allFriends, initialGroup, onSave, onClose }: FlowProps) {
     })
   }
 
+  const handleAvatarChange = (e: { target: { files?: FileList | null } }) => {
+    const file = e.target.files?.[0]
+    if (!file) return
+    setAvatarFile(file)
+    setAvatarPreview(URL.createObjectURL(file))
+  }
+
   const handleSave = async () => {
     if (!name.trim()) return
     setSaving(true)
-    await onSave(name.trim(), color, symbol, [...selectedIds])
+    let finalAvatarUrl: string | null = avatarPreview && !avatarFile ? avatarPreview : (initialGroup?.avatar_url ?? null)
+    if (avatarFile) {
+      try { finalAvatarUrl = await uploadImage(avatarFile, { maxWidth: 400, quality: 0.88 }) } catch { /* skip */ }
+    }
+    await onSave(name.trim(), color, symbol, [...selectedIds], finalAvatarUrl)
     setSaving(false)
   }
 
@@ -241,6 +264,33 @@ function GroupFlow({ allFriends, initialGroup, onSave, onClose }: FlowProps) {
 
             {/* Scrollable body */}
             <div style={{ overflowY: 'auto', padding: '20px 22px 26px', flex: 1 }}>
+
+              {/* Banner image */}
+              <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.67rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>Banner image</p>
+              <div
+                onClick={() => avatarInputRef.current?.click()}
+                style={{
+                  width: '100%', height: 90, borderRadius: 'var(--radius-md)', overflow: 'hidden',
+                  background: avatarPreview ? 'transparent' : `${color}10`,
+                  border: `2px dashed ${color}50`,
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  marginBottom: 22, position: 'relative',
+                }}
+              >
+                {avatarPreview
+                  ? <img src={avatarPreview} alt="banner" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 6, color, opacity: 0.6 }}>
+                      <svg width={20} height={20} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                      <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.72rem' }}>Upload banner</span>
+                    </div>
+                }
+                {avatarPreview && (
+                  <div style={{ position: 'absolute', bottom: 6, right: 6, background: 'rgba(0,0,0,0.5)', borderRadius: 'var(--radius-sm)', padding: '3px 8px', color: 'white', fontFamily: 'var(--font-sans)', fontSize: '0.68rem', backdropFilter: 'blur(4px)' }}>
+                    Change
+                  </div>
+                )}
+                <input ref={avatarInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleAvatarChange} />
+              </div>
 
               {/* Name */}
               <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.67rem', color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>Name</p>
@@ -357,7 +407,33 @@ function GroupFlow({ allFriends, initialGroup, onSave, onClose }: FlowProps) {
           {step === 0 && (
             <div style={{ padding: '22px 24px 26px' }}>
               <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.4rem', fontWeight: 500, textAlign: 'center', marginBottom: 6 }}>Name your group</h2>
-              <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', marginBottom: 24 }}>What do you call these people in your head?</p>
+              <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8rem', color: 'var(--text-muted)', textAlign: 'center', marginBottom: 20 }}>What do you call these people in your head?</p>
+
+              {/* Banner upload */}
+              <div
+                onClick={() => avatarInputRef.current?.click()}
+                style={{
+                  width: '100%', height: 80, borderRadius: 'var(--radius-md)', overflow: 'hidden',
+                  background: avatarPreview ? 'transparent' : `${color}10`,
+                  border: `2px dashed ${color}50`,
+                  cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  marginBottom: 18, position: 'relative',
+                }}
+              >
+                {avatarPreview
+                  ? <img src={avatarPreview} alt="banner" style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                  : <div style={{ display: 'flex', alignItems: 'center', gap: 8, color, opacity: 0.6 }}>
+                      <svg width={16} height={16} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+                      <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.72rem' }}>Add a banner image (optional)</span>
+                    </div>
+                }
+                {avatarPreview && (
+                  <div style={{ position: 'absolute', bottom: 5, right: 5, background: 'rgba(0,0,0,0.5)', borderRadius: 'var(--radius-sm)', padding: '2px 7px', color: 'white', fontFamily: 'var(--font-sans)', fontSize: '0.66rem', backdropFilter: 'blur(4px)' }}>
+                    Change
+                  </div>
+                )}
+                <input ref={avatarInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleAvatarChange} />
+              </div>
 
               <div style={{ padding: '18px 20px', borderRadius: 'var(--radius-lg)', background: `linear-gradient(140deg, ${color}14 0%, ${color}04 100%)`, border: `1px solid ${color}30`, marginBottom: 22, position: 'relative', overflow: 'hidden', minHeight: 90 }}>
                 <div style={{ position: 'absolute', right: 12, bottom: 4, fontSize: '3.5rem', color, opacity: 0.12, lineHeight: 1, userSelect: 'none' }}>{symbol}</div>
@@ -470,28 +546,42 @@ function GroupDetail({ group, allFriends, onClose, onDelete, onEdit }: DetailPro
         }}>
           {/* Hero header */}
           <div style={{
-            padding: '28px 26px 22px',
-            background: `linear-gradient(140deg, ${group.color}20 0%, ${group.color}06 100%)`,
-            borderBottom: `1px solid ${group.color}20`,
             position: 'relative',
             overflow: 'hidden',
             flexShrink: 0,
+            borderBottom: `1px solid ${group.color}20`,
           }}>
-            <div style={{ position: 'absolute', right: 20, bottom: -10, fontSize: '6rem', color: group.color, opacity: 0.1, lineHeight: 1, userSelect: 'none' }}>{group.symbol}</div>
-            <button onClick={onClose} style={{ position: 'absolute', top: 16, right: 16, background: 'none', border: 'none', cursor: 'pointer', color: 'var(--text-muted)', fontSize: '1.2rem', lineHeight: 1, padding: '2px 6px' }}>×</button>
-            <div style={{
-              display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-              width: 44, height: 44, borderRadius: 12,
-              background: `${group.color}20`, border: `1.5px solid ${group.color}40`,
-              color: group.color, fontSize: '1.3rem', marginBottom: 12,
-            }}>{group.symbol}</div>
-            <div style={{ fontFamily: 'var(--font-serif)', fontSize: '1.7rem', fontWeight: 600, color: 'var(--text)', lineHeight: 1.1, marginBottom: 4 }}>{group.name}</div>
-            <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
-              {members.length === 0 ? 'No members' : `${members.length} ${members.length === 1 ? 'person' : 'people'}`}
-            </div>
-            <div style={{ marginTop: 16, display: 'flex', gap: 8 }}>
-              <button onClick={onEdit} style={{ padding: '6px 14px', borderRadius: 'var(--radius-full)', border: `1.5px solid ${group.color}40`, background: `${group.color}10`, color: group.color, fontFamily: 'var(--font-sans)', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer' }}>Edit group</button>
-              <button onClick={() => setConfirmDelete(true)} style={{ padding: '6px 14px', borderRadius: 'var(--radius-full)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', fontFamily: 'var(--font-sans)', fontSize: '0.76rem', cursor: 'pointer' }}>Delete</button>
+            {/* Banner */}
+            {group.avatar_url ? (
+              <div style={{ height: 130, overflow: 'hidden', position: 'relative' }}>
+                <img src={group.avatar_url} alt={group.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
+                <div style={{ position: 'absolute', inset: 0, background: 'linear-gradient(to bottom, rgba(0,0,0,0.08) 0%, rgba(0,0,0,0.38) 100%)' }} />
+              </div>
+            ) : (
+              <div style={{ background: `linear-gradient(140deg, ${group.color}20 0%, ${group.color}06 100%)`, padding: '28px 26px 0' }}>
+                <div style={{ position: 'absolute', right: 20, bottom: -10, fontSize: '6rem', color: group.color, opacity: 0.1, lineHeight: 1, userSelect: 'none' }}>{group.symbol}</div>
+              </div>
+            )}
+
+            <button onClick={onClose} style={{ position: 'absolute', top: 12, right: 14, background: group.avatar_url ? 'rgba(0,0,0,0.35)' : 'none', border: 'none', cursor: 'pointer', color: group.avatar_url ? 'white' : 'var(--text-muted)', fontSize: '1.2rem', lineHeight: 1, padding: '3px 7px', borderRadius: 'var(--radius-full)', backdropFilter: group.avatar_url ? 'blur(4px)' : 'none' }}>×</button>
+
+            <div style={{ padding: '14px 26px 20px', background: group.avatar_url ? 'var(--bg-card)' : `linear-gradient(140deg, ${group.color}20 0%, ${group.color}06 100%)` }}>
+              {!group.avatar_url && (
+                <div style={{
+                  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+                  width: 44, height: 44, borderRadius: 12,
+                  background: `${group.color}20`, border: `1.5px solid ${group.color}40`,
+                  color: group.color, fontSize: '1.3rem', marginBottom: 10,
+                }}>{group.symbol}</div>
+              )}
+              <div style={{ fontFamily: 'var(--font-serif)', fontSize: '1.7rem', fontWeight: 600, color: 'var(--text)', lineHeight: 1.1, marginBottom: 4 }}>{group.name}</div>
+              <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.78rem', color: 'var(--text-muted)' }}>
+                {members.length === 0 ? 'No members' : `${members.length} ${members.length === 1 ? 'person' : 'people'}`}
+              </div>
+              <div style={{ marginTop: 14, display: 'flex', gap: 8 }}>
+                <button onClick={onEdit} style={{ padding: '6px 14px', borderRadius: 'var(--radius-full)', border: `1.5px solid ${group.color}40`, background: `${group.color}10`, color: group.color, fontFamily: 'var(--font-sans)', fontSize: '0.76rem', fontWeight: 600, cursor: 'pointer' }}>Edit group</button>
+                <button onClick={() => setConfirmDelete(true)} style={{ padding: '6px 14px', borderRadius: 'var(--radius-full)', border: '1.5px solid var(--border)', background: 'transparent', color: 'var(--text-muted)', fontFamily: 'var(--font-sans)', fontSize: '0.76rem', cursor: 'pointer' }}>Delete</button>
+              </div>
             </div>
           </div>
 
@@ -549,14 +639,14 @@ export default function FriendGroups() {
   const openGroup = groups.find(g => g.id === openGroupId)
   const editingGroup = groups.find(g => g.id === editingGroupId)
 
-  const handleCreate = async (name: string, color: string, symbol: string, friendIds: string[]) => {
-    await createGroup({ name, color, symbol }, friendIds)
+  const handleCreate = async (name: string, color: string, symbol: string, friendIds: string[], avatarUrl: string | null) => {
+    await createGroup({ name, color, symbol, avatar_url: avatarUrl }, friendIds)
     setShowCreate(false)
   }
 
-  const handleEdit = async (name: string, color: string, symbol: string, friendIds: string[]) => {
+  const handleEdit = async (name: string, color: string, symbol: string, friendIds: string[], avatarUrl: string | null) => {
     if (!editingGroupId) return
-    await updateGroup(editingGroupId, { name, color, symbol }, friendIds)
+    await updateGroup(editingGroupId, { name, color, symbol, avatar_url: avatarUrl }, friendIds)
     setEditingGroupId(null)
     setOpenGroupId(null)
   }
