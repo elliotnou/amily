@@ -20,6 +20,16 @@ import { callAI, buildFriendContext, PROMPTS } from '../lib/ai'
 
 const MET_HOW_OPTIONS = ['School','Work','Mutual friend','Online','Neighborhood','Event','Travel','Family','Other']
 
+// Sticker catalogue — edit `pos` to reposition each gif on the page.
+// Coordinates are relative to the page-container (top-left = 0,0).
+// The profile banner sits roughly between top: 50 and top: 280.
+export const STICKERS: { src: string; label: string; pos: React.CSSProperties }[] = [
+  { src: 'https://res.cloudinary.com/dde0pcp98/image/upload/v1774391729/stickers/n8orndoa4duzncylkgdz.webp', label: 'Cat',        pos: { top: 5,   right: 100 } },
+  { src: 'https://res.cloudinary.com/dde0pcp98/image/upload/v1774391730/stickers/qlocuh2h9crzmkpfvpos.webp', label: 'Pikachu',    pos: { top: -5,  right: 120 } },
+  { src: 'https://res.cloudinary.com/dde0pcp98/image/upload/v1774391731/stickers/bjcfqaq50eysseslwaux.webp', label: 'Sleepy',     pos: { top: -13, right: 80  } },
+  { src: 'https://res.cloudinary.com/dde0pcp98/image/upload/v1774391731/stickers/minygskkpnmzhl3acgy4.gif',  label: 'Pixel duck', pos: { top: 10,  right: 120 } },
+]
+
 function daysUntilBirthday(birthday: string): number | null {
   const d = new Date(birthday)
   if (isNaN(d.getTime())) return null
@@ -209,12 +219,13 @@ export default function FriendProfile() {
   const [effect, setEffect] = useState('none')
   const [headerPattern, setHeaderPattern] = useState('none')
   const [vibeWord, setVibeWord] = useState('')
+  const [profileGif, setProfileGif] = useState<string | null>(null)
 
   useEffect(() => {
     if (!id) return
     supabase
       .from('profile_customizations')
-      .select('theme_color, font, effect, pattern, vibe_word')
+      .select('theme_color, font, effect, pattern, vibe_word, gif')
       .eq('friend_id', id)
       .maybeSingle()
       .then(({ data }) => {
@@ -225,6 +236,7 @@ export default function FriendProfile() {
           setEffect(d.effect ?? 'none')
           setHeaderPattern(d.pattern ?? 'none')
           setVibeWord(d.vibe_word ?? '')
+          setProfileGif(d.gif ?? null)
         }
       })
   }, [id])
@@ -471,7 +483,7 @@ export default function FriendProfile() {
   const FACT_CATEGORIES = ['Fave food','Drink order','Dietary','Fave artist','Fave color','Fave movie','Fave book','Shirt size','Other']
 
   return (
-    <div className="page-container" style={{ maxWidth: 1080, ...(fontFamily ? { fontFamily } : {}) }}>
+    <div className="page-container" style={{ maxWidth: 1080, position: 'relative', ...(fontFamily ? { fontFamily } : {}) }}>
       <style>{`
 .bday-badge::after { content: attr(data-tooltip); position: absolute; bottom: calc(100% + 6px); left: 50%; transform: translateX(-50%); background: rgba(0,0,0,0.75); color: white; font-size: 0.68rem; font-family: var(--font-sans); padding: 3px 8px; border-radius: 4px; white-space: nowrap; pointer-events: none; opacity: 0; transition: opacity 150ms; }
         .bday-badge { position: relative; }
@@ -1258,6 +1270,23 @@ export default function FriendProfile() {
         <style>{`.avatar-overlay { opacity: 0 !important; } div:hover > .avatar-overlay { opacity: 1 !important; }`}</style>
       </Modal>
 
+      {/* ── GIF sticker (page-level, above everything) ── */}
+      {profileGif && (() => {
+        const stickerPos = STICKERS.find(s => s.src === profileGif)?.pos ?? { top: 120, right: 24 }
+        return (
+          <div className="animate-in animate-in-1" style={{
+            position: 'absolute', ...stickerPos,
+            width: 80, height: 80,
+            zIndex: 50,
+            imageRendering: 'pixelated',
+            filter: 'drop-shadow(0 2px 10px rgba(0,0,0,0.3))',
+            pointerEvents: 'none',
+          }}>
+            <img src={profileGif} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
+          </div>
+        )
+      })()}
+
       {/* ── Customize Style Modal ── */}
       <Modal open={showCustomize} onClose={() => setShowCustomize(false)} title="Customize style">
         <div style={{
@@ -1353,12 +1382,31 @@ export default function FriendProfile() {
             style={{ fontFamily: 'var(--font-serif)', fontSize: '0.95rem', fontStyle: vibeWord ? 'italic' : 'normal' }}
           />
         </div>
+        <div className="form-group">
+          <label className="form-label">Sticker</label>
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            <button
+              onClick={() => setProfileGif(null)}
+              style={{ width: 52, height: 52, borderRadius: 'var(--radius-md)', border: profileGif === null ? `2px solid ${bannerColor}` : '2px solid var(--border)', background: profileGif === null ? `${bannerColor}10` : 'var(--bg)', cursor: 'pointer', fontSize: '1rem', color: 'var(--text-muted)', transition: 'all 0.2s' }}
+            >✕</button>
+            {STICKERS.map(g => (
+              <button
+                key={g.src}
+                onClick={() => setProfileGif(g.src)}
+                title={g.label}
+                style={{ width: 52, height: 52, borderRadius: 'var(--radius-md)', border: profileGif === g.src ? `2px solid ${bannerColor}` : '2px solid var(--border)', background: profileGif === g.src ? `${bannerColor}10` : 'var(--bg)', cursor: 'pointer', padding: 4, transition: 'all 0.2s', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+              >
+                <img src={g.src} alt={g.label} style={{ width: '100%', height: '100%', objectFit: 'contain', imageRendering: 'pixelated' }} />
+              </button>
+            ))}
+          </div>
+        </div>
         <div className="modal-actions">
           <button className="btn btn-ghost" onClick={() => setShowCustomize(false)}>Cancel</button>
           <button className="btn btn-primary" onClick={async () => {
             if (user && id) {
               await supabase.from('profile_customizations').upsert(
-                { user_id: user.id, friend_id: id, theme_color: themeColor, font: profileFont, effect, pattern: headerPattern, vibe_word: vibeWord || null } as any,
+                { user_id: user.id, friend_id: id, theme_color: themeColor, font: profileFont, effect, pattern: headerPattern, vibe_word: vibeWord || null, gif: profileGif } as any,
                 { onConflict: 'user_id,friend_id' }
               )
             }
