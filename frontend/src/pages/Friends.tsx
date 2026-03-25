@@ -115,17 +115,15 @@ export default function Friends() {
             ] as const).map(({ v, Icon, label }) => (
               <button
                 key={v}
-                title={label}
                 onClick={() => { setView(v); localStorage.setItem('friends_view', v) }}
-                className="btn"
+                title={label}
                 style={{
+                  width: 34, height: 34, border: 'none',
+                  borderRadius: 'var(--radius-md)', cursor: 'pointer',
                   display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  width: 36, height: 36, padding: 0,
-                  borderRadius: 'var(--radius-md)', border: '1px solid var(--border)',
-                  background: view === v ? 'var(--accent)' : 'var(--bg-card)',
-                  color: view === v ? 'white' : 'var(--text-muted)',
-                  cursor: 'pointer',
-                  transition: 'background 150ms, color 150ms',
+                  background: view === v ? 'var(--bg-active)' : 'transparent',
+                  color: view === v ? 'var(--text)' : 'var(--text-muted)',
+                  transition: 'all 0.18s',
                 }}
               >
                 <Icon size={15} />
