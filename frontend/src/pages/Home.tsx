@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { Link, Navigate } from 'react-router-dom'
+import { useState, useEffect } from 'react'
+import { Link, Navigate, useLocation } from 'react-router-dom'
 import { useFriends } from '../lib/hooks/useFriends'
 import { useHangouts } from '../lib/hooks/useHangouts'
 import { useNudges } from '../lib/hooks/useNudges'
@@ -7,6 +7,7 @@ import { useDebts } from '../lib/hooks/useDebts'
 import { useAuth } from '../lib/auth'
 import { useTheme } from '../lib/ThemeContext'
 import { IconClock, IconCake, IconCheck, IconPlus } from '../components/Icons'
+import GuidedTour, { HOME_STEPS } from '../components/GuidedTour'
 
 const nudgeIcons = { clock: IconClock, cake: IconCake, check: IconCheck }
 
@@ -54,13 +55,13 @@ const tierColors: Record<string, string> = {
 }
 
 // Double-rectangle wrapper: outer frame + inner card
-function Widget({ children, className, style, innerBg, darkInnerBg }: { children: React.ReactNode; className?: string; style?: React.CSSProperties; innerBg?: string; darkInnerBg?: string }) {
+function Widget({ children, className, style, innerBg, darkInnerBg, 'data-tour': dataTour }: { children: React.ReactNode; className?: string; style?: React.CSSProperties; innerBg?: string; darkInnerBg?: string; 'data-tour'?: string }) {
   const { isDark } = useTheme()
   const bg = isDark
     ? (darkInnerBg || 'linear-gradient(to bottom right, #22222a 0%, #1f1f26 50%, #1c1c22 100%)')
     : (innerBg || 'linear-gradient(to bottom right, #ffffff 0%, #fdfaf8 40%, #faf5f2 100%)')
   return (
-    <div className={className} style={{ background: isDark ? '#1c1c22' : '#ffffff', borderRadius: 22, padding: 10, border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`, ...style }}>
+    <div className={className} data-tour={dataTour} style={{ background: isDark ? '#1c1c22' : '#ffffff', borderRadius: 22, padding: 10, border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`, ...style }}>
       <div style={{ background: bg, borderRadius: 16, padding: '22px 24px', border: `1px solid ${isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.06)'}`, height: '100%' }}>
         {children}
       </div>
@@ -102,6 +103,17 @@ export default function Home() {
   })
   const maxMonthly = Math.max(...monthlyCounts, 1)
   const [hoveredBar, setHoveredBar] = useState<number | null>(null)
+  const location = useLocation()
+  const [showTour, setShowTour] = useState(false)
+
+  useEffect(() => {
+    const fromOnboarding = location.state?.fromOnboarding
+    const tourDone = localStorage.getItem('tour_complete')
+    if (fromOnboarding && !tourDone) {
+      const t = setTimeout(() => setShowTour(true), 800)
+      return () => clearTimeout(t)
+    }
+  }, [location.state])
   const thisMonthCount = monthlyCounts[monthlyCounts.length - 1]
 
   const thisMonth = months[months.length - 1]
@@ -198,7 +210,7 @@ export default function Home() {
       </div>
 
       {/* ═══ SNAPSHOT LEFT + ACTIVITY RIGHT ═══ */}
-      <div className="animate-in animate-in-1" style={{
+      <div data-tour="stats" className="animate-in animate-in-1" style={{
         display: 'grid', gridTemplateColumns: '7fr 3fr', gap: 0,
         marginBottom: 24, alignItems: 'center',
         padding: '0 14px',
@@ -317,7 +329,7 @@ export default function Home() {
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 24 }}>
 
         {/* Your people */}
-        <Widget className="animate-in animate-in-2" innerBg="linear-gradient(to bottom right, #ffffff 0%, #fef5f1 40%, #fce9e2 100%)" darkInnerBg="linear-gradient(to bottom right, #22222a 0%, #261f1c 40%, #2a201c 100%)">
+        <Widget data-tour="people" className="animate-in animate-in-2" innerBg="linear-gradient(to bottom right, #ffffff 0%, #fef5f1 40%, #fce9e2 100%)" darkInnerBg="linear-gradient(to bottom right, #22222a 0%, #261f1c 40%, #2a201c 100%)">
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 14 }}>
             <span style={{ fontFamily: 'var(--font-serif)', fontSize: '1rem', fontWeight: 500 }}>Your people</span>
             <Link to="/friends" style={{ fontFamily: 'var(--font-sans)', fontSize: '0.68rem', color: 'var(--text-muted)', textDecoration: 'none' }}>View all</Link>
@@ -380,7 +392,7 @@ export default function Home() {
         </Widget>
 
         {/* Nudges / Quick actions */}
-        <Widget className="animate-in animate-in-2" innerBg="linear-gradient(to bottom right, #ffffff 0%, #f5f3fa 40%, #ebe7f4 100%)" darkInnerBg="linear-gradient(to bottom right, #22222a 0%, #201f28 40%, #1e1c26 100%)">
+        <Widget data-tour="actions" className="animate-in animate-in-2" innerBg="linear-gradient(to bottom right, #ffffff 0%, #f5f3fa 40%, #ebe7f4 100%)" darkInnerBg="linear-gradient(to bottom right, #22222a 0%, #201f28 40%, #1e1c26 100%)">
           {nudges.length > 0 ? (
             <>
               <span style={{ fontFamily: 'var(--font-serif)', fontSize: '1rem', fontWeight: 500, marginBottom: 14, display: 'block' }}>Nudges</span>
@@ -556,6 +568,13 @@ export default function Home() {
             </div>
           </Widget>
         </div>
+      )}
+
+      {showTour && (
+        <GuidedTour steps={HOME_STEPS} onComplete={() => {
+          setShowTour(false)
+          localStorage.setItem('tour_complete', '1')
+        }} />
       )}
     </div>
   )

@@ -1,4 +1,4 @@
-import { NavLink, Link } from 'react-router-dom'
+import { NavLink, Link, useNavigate } from 'react-router-dom'
 import { IconHome, IconUsers, IconCalendar, IconChart, IconSparkle, IconSettings, IconGroups } from './Icons'
 import { useSidebar } from '../lib/SidebarContext'
 import { useTheme } from '../lib/ThemeContext'
@@ -45,6 +45,7 @@ export default function Sidebar() {
   const { collapsed, toggle } = useSidebar()
   const { toggle: toggleTheme, isDark } = useTheme()
   const { status: subStatus } = useSubscription()
+  const navigate = useNavigate()
 
   return (
     <aside className={`sidebar${collapsed ? ' sidebar--collapsed' : ''}`}>
@@ -123,6 +124,19 @@ export default function Sidebar() {
             <span className="link-icon"><IconSettings size={18} /></span>
             {!collapsed && 'Settings'}
           </NavLink>
+
+          <button
+            onClick={() => {
+              localStorage.removeItem('tour_complete')
+              navigate('/home', { state: { fromOnboarding: true } })
+            }}
+            className="sidebar-link"
+            title={collapsed ? 'Replay tour' : undefined}
+            style={{ width: '100%', opacity: 0.5, fontSize: '0.72rem' }}
+          >
+            <span className="link-icon" style={{ fontSize: '0.85rem' }}>?</span>
+            {!collapsed && 'Replay tour'}
+          </button>
 
           {/* Collapse toggle at bottom when collapsed */}
           {collapsed && (

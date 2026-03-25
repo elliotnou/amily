@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { useFriends } from '../lib/hooks/useFriends'
 import AddFriendFlow from '../components/AddFriendFlow'
@@ -9,9 +9,17 @@ export default function Onboarding() {
   const { createFriend } = useFriends()
   const [showFlow, setShowFlow] = useState(false)
 
+  useEffect(() => {
+    const prev = document.documentElement.getAttribute('data-theme')
+    document.documentElement.setAttribute('data-theme', 'light')
+    return () => {
+      if (prev) document.documentElement.setAttribute('data-theme', prev)
+    }
+  }, [])
+
   const handleSave = async (payload: AddFriendPayload) => {
     const result = await createFriend(payload)
-    if (!result?.error) navigate('/home')
+    if (!result?.error) navigate('/home', { state: { fromOnboarding: true } })
     return result
   }
 
@@ -28,12 +36,17 @@ export default function Onboarding() {
       <div style={{ maxWidth: 480, width: '100%' }}>
 
         {/* Logo */}
-        <div style={{ textAlign: 'center', marginBottom: 'var(--space-3xl)' }}>
-          <img src="/assets/pagelogo.png" alt="amily" style={{ height: 52, objectFit: 'contain', marginBottom: 6 }} />
-          <p style={{
-            fontFamily: 'var(--font-sans)', fontSize: '0.78rem', color: 'var(--text-muted)',
-            letterSpacing: '0.1em', textTransform: 'uppercase',
-          }}>your relationship graph</p>
+        <div style={{ marginBottom: 'var(--space-lg)', marginTop: 14, paddingLeft: 32 }}>
+          <img
+            src="/assets/pagelogo.png"
+            alt="amily"
+            style={{
+              height: 58,
+              objectFit: 'contain',
+              mixBlendMode: 'multiply',
+              filter: 'brightness(1.02)',
+            }}
+          />
         </div>
 
         {/* Welcome card */}
@@ -78,7 +91,7 @@ export default function Onboarding() {
         <button
           className="btn btn-ghost"
           style={{ width: '100%', fontSize: '0.83rem' }}
-          onClick={() => navigate('/home')}
+          onClick={() => navigate('/home', { state: { fromOnboarding: true } })}
         >
           Skip for now
         </button>

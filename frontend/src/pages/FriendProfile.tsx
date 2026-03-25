@@ -6,6 +6,7 @@ import { useFriends } from '../lib/hooks/useFriends'
 import { useImpressions } from '../lib/hooks/useImpressions'
 import { useHangouts } from '../lib/hooks/useHangouts'
 import LoadingScreen from '../components/LoadingScreen'
+import GuidedTour, { PROFILE_STEPS } from '../components/GuidedTour'
 import Modal from '../components/Modal'
 import RelationshipRadar from '../components/RelationshipRadar'
 import { computeRadarScores } from '../lib/friendScores'
@@ -204,6 +205,7 @@ export default function FriendProfile() {
   const [showContactModal, setShowContactModal] = useState(false)
   const [showEditInfo, setShowEditInfo] = useState(false)   // ← info editing
   const [showCustomize, setShowCustomize] = useState(false) // ← style only
+  const [showProfileTour, setShowProfileTour] = useState(() => !localStorage.getItem('profile_tour_complete'))
 
   // Draft state — only committed to real state on Apply
   const [draftColor, setDraftColor] = useState<string | null>(null)
@@ -520,7 +522,7 @@ export default function FriendProfile() {
       }}>
 
         {/* ── Hero ── */}
-        <div style={{
+        <div data-tour="profile-hero" style={{
           background: effect === 'gradient'
             ? `linear-gradient(135deg, ${bannerColor} 0%, ${lightenHex(bannerColor, 55)} 100%)`
             : bannerColor,
@@ -555,7 +557,7 @@ export default function FriendProfile() {
             </div>
           )}
 
-          <div style={{ position: 'absolute', top: 16, right: 16, display: 'flex', gap: 8 }}>
+          <div data-tour="profile-edit" style={{ position: 'absolute', top: 16, right: 16, display: 'flex', gap: 8 }}>
             <button onClick={openEditInfo} style={{ background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 'var(--radius-full)', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'white', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' as any }} title="Edit info"><IconPencil size={15} /></button>
             <button onClick={() => {
               setDraftColor(themeColor)
@@ -567,6 +569,9 @@ export default function FriendProfile() {
               setShowCustomize(true)
             }} style={{ background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 'var(--radius-full)', width: 36, height: 36, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'white', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' as any }} title="Customize style"><IconPaintbrush size={16} /></button>
           </div>
+
+          {/* Replay tour button — separate from edit group */}
+          <button onClick={() => { localStorage.removeItem('profile_tour_complete'); setShowProfileTour(true) }} style={{ position: 'absolute', bottom: 16, right: 16, background: 'rgba(255,255,255,0.2)', border: '1px solid rgba(255,255,255,0.25)', borderRadius: 'var(--radius-full)', width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center', cursor: 'pointer', color: 'white', backdropFilter: 'blur(8px)', WebkitBackdropFilter: 'blur(8px)' as any, fontSize: '0.7rem', fontWeight: 700, opacity: 0.6 }} title="Replay tour">?</button>
 
           <div style={{ display: 'flex', gap: 32, alignItems: 'center', flexWrap: 'wrap' }}>
             {/* Avatar + freshness ring */}
@@ -628,6 +633,7 @@ export default function FriendProfile() {
 
         {/* ── Tab bar (lives on the card) ── */}
         <div style={{ display: 'flex', borderBottom: '1px solid rgba(0,0,0,0.06)', padding: '0 48px', background: 'var(--bg-card)' }}>
+          <div data-tour="profile-tabs" style={{ display: 'flex' }}>
           {tabs.map(tab => (
             <button key={tab} onClick={() => setActiveTab(tab)} style={{
               padding: '13px 18px', border: 'none', background: 'none', cursor: 'pointer',
@@ -638,6 +644,7 @@ export default function FriendProfile() {
               marginBottom: -1, transition: 'color 0.15s',
             }}>{tab === 'ai' ? 'AI' : tab.charAt(0).toUpperCase() + tab.slice(1)}</button>
           ))}
+          </div>
         </div>
 
         {/* ── Tab content ── */}
@@ -733,7 +740,7 @@ export default function FriendProfile() {
                 {/* Right col */}
                 <div>
                   {/* Radar */}
-                  <div style={{ marginBottom: 28, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
+                  <div data-tour="profile-radar" style={{ marginBottom: 28, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 8 }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: 4 }}>
                       <InnerLabel accent={bannerColor} fontFamily={fontFamily}>Relationship radar</InnerLabel>
                       <button
@@ -746,7 +753,7 @@ export default function FriendProfile() {
 
 
                   {/* Facts */}
-                  <div style={{ paddingTop: 20, borderTop: `1px solid ${bannerColor}22` }}>
+                  <div data-tour="profile-facts" style={{ paddingTop: 20, borderTop: `1px solid ${bannerColor}22` }}>
                     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
                       <InnerLabel accent={bannerColor} fontFamily={fontFamily}>Facts</InnerLabel>
                       <div style={{ display: 'flex', gap: 6 }}>
@@ -1515,6 +1522,13 @@ export default function FriendProfile() {
           >Delete forever</button>
         </div>
       </Modal>
+
+      {showProfileTour && (
+        <GuidedTour steps={PROFILE_STEPS} onComplete={() => {
+          setShowProfileTour(false)
+          localStorage.setItem('profile_tour_complete', '1')
+        }} />
+      )}
     </div>
   )
 }
