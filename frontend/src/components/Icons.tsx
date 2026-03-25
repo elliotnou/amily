@@ -208,3 +208,38 @@ export function IconStar({ size = 16, filled = false }: { size?: number; filled?
     </svg>
   )
 }
+
+export function IconGrid({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+      <rect x="3" y="14" width="7" height="7"/><rect x="14" y="14" width="7" height="7"/>
+    </svg>
+  )
+}
+
+export function IconTimeline({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <line x1="8" y1="6" x2="8" y2="18"/>
+      <circle cx="8" cy="7" r="1.5" fill="currentColor" stroke="none"/>
+      <circle cx="8" cy="12" r="1.5" fill="currentColor" stroke="none"/>
+      <circle cx="8" cy="17" r="1.5" fill="currentColor" stroke="none"/>
+      <line x1="11" y1="7" x2="21" y2="7"/>
+      <line x1="11" y1="12" x2="18" y2="12"/>
+      <line x1="11" y1="17" x2="20" y2="17"/>
+    </svg>
+  )
+}
+
+export function IconNetwork({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+      <circle cx="12" cy="12" r="2.5"/>
+      <circle cx="4" cy="6" r="2"/><circle cx="20" cy="6" r="2"/>
+      <circle cx="4" cy="18" r="2"/><circle cx="20" cy="18" r="2"/>
+      <line x1="6" y1="7" x2="10" y2="11"/><line x1="18" y1="7" x2="14" y2="11"/>
+      <line x1="6" y1="17" x2="10" y2="13"/><line x1="18" y1="17" x2="14" y2="13"/>
+    </svg>
+  )
+}

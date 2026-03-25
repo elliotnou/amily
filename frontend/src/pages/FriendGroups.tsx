@@ -417,7 +417,7 @@ function GroupFlow({ allFriends, initialGroup, onSave, onClose }: FlowProps) {
                 ))}
               </div>
 
-              <button className="btn btn-primary" style={{ width: '100%', padding: '13px', background: color, fontSize: '0.95rem' }} onClick={() => setStep(1)} disabled={!name.trim()}>Continue →</button>
+              <button className="btn btn-primary" style={{ width: '100%', padding: '13px', fontSize: '0.95rem' }} onClick={() => setStep(1)} disabled={!name.trim()}>Continue →</button>
             </div>
           )}
 

@@ -2,9 +2,14 @@ import { useState, useEffect } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
 import { useFriends } from '../lib/hooks/useFriends'
 import { useHangouts } from '../lib/hooks/useHangouts'
+import { useFriendGroups } from '../lib/hooks/useFriendGroups'
 import AddFriendFlow from '../components/AddFriendFlow'
 import type { AddFriendPayload } from '../components/AddFriendFlow'
-import { IconSearch, IconUserPlus, IconPlus, IconStar } from '../components/Icons'
+import FriendsTimeline from '../components/FriendsTimeline'
+import FriendsGraph from '../components/FriendsGraph'
+import { IconSearch, IconUserPlus, IconPlus, IconStar, IconGrid, IconTimeline, IconNetwork } from '../components/Icons'
+
+type ViewMode = 'grid' | 'timeline' | 'graph'
 
 type SortKey = 'recent' | 'first-name' | 'last-name' | 'most-hangs' | 'longest' | 'tier' | 'starred'
 
@@ -22,6 +27,7 @@ const TIER_ORDER: Record<string, number> = { 'inner-circle': 0, 'close-friend': 
 
 export default function Friends() {
   const { friends, loading, createFriend, toggleStar: _toggleStar } = useFriends()
+  const [view, setView] = useState<ViewMode>(() => (localStorage.getItem('friends_view') as ViewMode) ?? 'grid')
   const [starOrder, setStarOrder] = useState<string[]>(() => {
     try { return JSON.parse(localStorage.getItem('star_order') ?? '[]') } catch { return [] }
   })
@@ -35,6 +41,7 @@ export default function Friends() {
     })
   }
   const { hangouts } = useHangouts()
+  const { groups: friendGroups } = useFriendGroups()
   const [search, setSearch] = useState('')
   const [sort, setSort] = useState<SortKey>(() => (localStorage.getItem('friends_sort') as SortKey) ?? 'recent')
   const [showFlow, setShowFlow] = useState(false)
@@ -118,20 +125,85 @@ export default function Friends() {
       </div>
 
       <div className="animate-in animate-in-1" style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 'var(--space-lg)' }}>
-        <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Sort by:</span>
-        <select
-          value={sort}
-          onChange={e => { const v = e.target.value as SortKey; setSort(v); localStorage.setItem('friends_sort', v) }}
-          className="form-input"
-          style={{ width: 'auto', fontSize: '0.78rem', padding: '5px 10px', cursor: 'pointer' }}
-        >
-          {SORT_OPTIONS.map(opt => (
-            <option key={opt.key} value={opt.key}>{opt.label}</option>
+        {view === 'grid' && (
+          <>
+            <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.75rem', color: 'var(--text-muted)', whiteSpace: 'nowrap' }}>Sort by:</span>
+            <select
+              value={sort}
+              onChange={e => { const v = e.target.value as SortKey; setSort(v); localStorage.setItem('friends_sort', v) }}
+              className="form-input"
+              style={{ width: 'auto', fontSize: '0.78rem', padding: '5px 10px', cursor: 'pointer' }}
+            >
+              {SORT_OPTIONS.map(opt => (
+                <option key={opt.key} value={opt.key}>{opt.label}</option>
+              ))}
+            </select>
+          </>
+        )}
+        <div style={{ marginLeft: 'auto', display: 'flex', gap: 4 }}>
+          {([
+            { v: 'grid' as ViewMode, Icon: IconGrid, label: 'Grid' },
+            { v: 'timeline' as ViewMode, Icon: IconTimeline, label: 'Timeline' },
+            { v: 'graph' as ViewMode, Icon: IconNetwork, label: 'Graph' },
+          ] as const).map(({ v, Icon, label }) => (
+            <button
+              key={v}
+              title={label}
+              onClick={() => { setView(v); localStorage.setItem('friends_view', v) }}
+              style={{
+                display: 'flex', alignItems: 'center', gap: 5,
+                padding: '5px 10px', borderRadius: 8, border: '1px solid var(--border)',
+                background: view === v ? 'var(--accent)' : 'var(--bg-card)',
+                color: view === v ? 'white' : 'var(--text-muted)',
+                cursor: 'pointer', fontFamily: 'var(--font-sans)', fontSize: '0.72rem',
+                transition: 'background 150ms, color 150ms',
+              }}
+            >
+              <Icon size={13} />
+              {label}
+            </button>
           ))}
-        </select>
+        </div>
       </div>
 
-      {loading ? <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '40vh' }}><p style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', color: 'var(--text-muted)' }}>Loading…</p></div> : (
+      {loading ? (
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '40vh' }}>
+          <p style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', color: 'var(--text-muted)' }}>Loading…</p>
+        </div>
+      ) : view === 'timeline' ? (
+        <div className="animate-in animate-in-2">
+          <FriendsTimeline friends={friends.map(f => ({
+            id: f.id,
+            name: f.name,
+            initials: f.initials,
+            avatar_color: f.avatar_color,
+            avatar_url: f.avatar_url ?? null,
+            met_date: f.met_date ?? null,
+            met_how: f.met_how ?? null,
+            location: f.location ?? null,
+            tier: f.tier ?? null,
+            day_count: f.day_count,
+            hangout_count: f.hangout_count,
+            starred: (f as any).starred ?? false,
+          }))} />
+        </div>
+      ) : view === 'graph' ? (
+        <div className="animate-in animate-in-2">
+          <FriendsGraph
+            friends={friends.map(f => ({
+              id: f.id,
+              name: f.name,
+              initials: f.initials,
+              avatar_color: f.avatar_color,
+              avatar_url: f.avatar_url ?? null,
+              tier: f.tier ?? null,
+              hangout_count: f.hangout_count,
+              starred: (f as any).starred ?? false,
+            }))}
+            groups={friendGroups.map(g => ({ id: g.id, name: g.name, color: g.color, memberIds: g.memberIds }))}
+          />
+        </div>
+      ) : (
         <div className="friend-grid animate-in animate-in-2">
           {filtered.map(f => (
             <Link key={f.id} to={`/friends/${f.id}`} className="friend-card friend-card-starrable" style={{ position: 'relative' }}>
