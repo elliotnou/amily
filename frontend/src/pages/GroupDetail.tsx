@@ -26,7 +26,7 @@ function IconPencil({ size = 14 }: { size?: number }) {
   )
 }
 
-function MemberDock({ members, groupColor }: { members: any[]; groupColor: string }) {
+function MemberDock({ members }: { members: any[] }) {
   return (
     <div style={{ display: 'flex', alignItems: 'flex-start', padding: '18px 0 16px' }}>
       {members.map((f, i) => (
@@ -147,7 +147,7 @@ export default function GroupDetailPage() {
       {/* Members dock — the star of the show */}
       {members.length > 0 && (
         <div className="animate-in animate-in-1" style={{ marginBottom: 16 }}>
-          <MemberDock members={members} groupColor={group.color} />
+          <MemberDock members={members} />
         </div>
       )}
 
