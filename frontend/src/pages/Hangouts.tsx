@@ -659,7 +659,7 @@ export default function Hangouts() {
             {groups.filter(g => g.name.toLowerCase().includes(hWhoSearch.toLowerCase())).map(g => {
               const selected = hSelectedGroup === g.id
               const disabled = !!hSelectedGroup && !selected
-              const memberNames = g.memberIds.map(id => friends.find(f => f.id === id)).filter(Boolean).map(f => getFirstName(f.name))
+              const memberNames = g.memberIds.map(id => friends.find(f => f.id === id)).filter((f): f is NonNullable<typeof f> => !!f).map(f => getFirstName(f.name))
               return (
                 <div key={g.id} onClick={() => !disabled && toggleGroup(g.id)} style={{
                   display: 'flex', alignItems: 'center', gap: 12, padding: '10px 14px',

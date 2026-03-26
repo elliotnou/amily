@@ -80,8 +80,8 @@ export default function Friends() {
           return aFirst.localeCompare(bFirst)
         }
         case 'last-name': {
-          const aLast = (a as any).last_name || a.name.split(' ').at(-1) ?? a.name
-          const bLast = (b as any).last_name || b.name.split(' ').at(-1) ?? b.name
+          const aLast = (a as any).last_name || (a.name.split(' ').at(-1) ?? a.name)
+          const bLast = (b as any).last_name || (b.name.split(' ').at(-1) ?? b.name)
           return aLast.localeCompare(bLast)
         }
         case 'most-hangs': return (hangoutCountById[b.id] ?? 0) - (hangoutCountById[a.id] ?? 0)
