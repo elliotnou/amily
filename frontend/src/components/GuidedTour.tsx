@@ -217,30 +217,31 @@ export default function GuidedTour({ steps, onComplete }: { steps: TourStep[]; o
         position: 'absolute',
         top: tip.top, left: tip.left,
         width: 280,
-        background: 'white',
+        background: 'var(--bg-card)',
         borderRadius: 18,
         padding: '24px 22px 20px',
         boxShadow: '0 12px 40px rgba(0,0,0,0.15)',
+        border: '1px solid var(--border)',
         transition: `top ${T}, left ${T}`,
       }}>
         <DoodleArrow side={current.arrowSide} />
 
-        <div style={{ fontFamily: 'var(--font-serif)', fontSize: '1.05rem', fontWeight: 600, color: '#1a1a2e', marginBottom: 8 }}>
+        <div style={{ fontFamily: 'var(--font-serif)', fontSize: '1.05rem', fontWeight: 600, color: 'var(--text)', marginBottom: 8 }}>
           {current.title}
         </div>
-        <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8rem', color: '#6b6b80', lineHeight: 1.6, marginBottom: 20 }}>
+        <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.8rem', color: 'var(--text-muted)', lineHeight: 1.6, marginBottom: 20 }}>
           {current.description}
         </div>
 
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-          <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.66rem', color: '#bbb' }}>
+          <span style={{ fontFamily: 'var(--font-sans)', fontSize: '0.66rem', color: 'var(--text-muted)' }}>
             click anywhere to continue
           </span>
           <div style={{ display: 'flex', gap: 5 }}>
             {steps.map((_, i) => (
               <div key={i} style={{
                 width: 6, height: 6, borderRadius: '50%',
-                background: i === step ? 'var(--accent)' : '#ddd',
+                background: i === step ? 'var(--accent)' : 'var(--border)',
                 transition: 'background 300ms ease',
               }} />
             ))}
