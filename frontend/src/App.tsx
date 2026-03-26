@@ -19,6 +19,7 @@ import FriendGroups from './pages/FriendGroups'
 import GroupDetailPage from './pages/GroupDetail'
 import Upgrade from './pages/Upgrade'
 import Onboarding from './pages/Onboarding'
+import AuthCallback from './pages/AuthCallback'
 
 function ScrollToTop() {
   const { pathname } = useLocation()
@@ -63,6 +64,7 @@ export default function App() {
         {/* Public */}
         <Route path="/" element={<Landing />} />
         <Route path="/login" element={<AuthRoute><Login /></AuthRoute>} />
+        <Route path="/auth/callback" element={<AuthCallback />} />
 
         {/* Protected */}
         <Route path="/home" element={<ProtectedRoute><AppLayout><Home /></AppLayout></ProtectedRoute>} />

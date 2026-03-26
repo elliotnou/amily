@@ -4,6 +4,7 @@ import { Link, useNavigate, useSearchParams } from 'react-router-dom'
 import { useFriendGroups } from '../lib/hooks/useFriendGroups'
 import { useFriends } from '../lib/hooks/useFriends'
 import Modal from '../components/Modal'
+import { IconSearch } from '../components/Icons'
 import { uploadImage } from '../lib/cloudinary'
 import type { FriendGroupWithMembers } from '../lib/hooks/useFriendGroups'
 import type { Database } from '../lib/database.types'
@@ -65,10 +66,10 @@ function GroupCard({ group, members }: {
       onMouseLeave={() => setHovered(false)}
       style={{
         position: 'relative',
-        background: `linear-gradient(140deg, ${group.color}14 0%, ${group.color}05 100%)`,
+        aspectRatio: '1 / 1',
+        background: group.avatar_url ? 'transparent' : `linear-gradient(140deg, ${group.color}14 0%, ${group.color}05 100%)`,
         border: `1px solid ${hovered ? group.color + '60' : group.color + '28'}`,
         borderRadius: 'var(--radius-xl)',
-        padding: '178px 22px 20px',
         cursor: 'pointer',
         overflow: 'hidden',
         transition: 'transform 200ms ease, box-shadow 200ms ease, border-color 200ms ease',
@@ -76,38 +77,38 @@ function GroupCard({ group, members }: {
         boxShadow: hovered
           ? `0 12px 40px ${group.color}22, 0 2px 8px rgba(0,0,0,0.06)`
           : '0 2px 8px rgba(0,0,0,0.04)',
-        minHeight: 260,
         display: 'flex',
         flexDirection: 'column',
-        justifyContent: 'space-between',
+        justifyContent: 'flex-end',
       }}
     >
-      {/* Banner image */}
+      {/* Full-bleed image */}
       {group.avatar_url && (
-        <div style={{
-          position: 'absolute', top: 0, left: 0, right: 0,
-          height: 168, overflow: 'hidden',
-          borderRadius: 'var(--radius-xl) var(--radius-xl) 0 0',
-        }}>
-          <img src={group.avatar_url} alt={group.name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
-          <div style={{ position: 'absolute', inset: 0, background: `linear-gradient(to bottom, transparent 50%, rgba(0,0,0,0.18) 100%)` }} />
-        </div>
+        <img src={group.avatar_url} alt={group.name} style={{
+          position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover',
+        }} />
       )}
 
-      {/* Text — always at bottom */}
-      <div>
-        <div style={{ fontFamily: 'var(--font-serif)', fontSize: '1.25rem', fontWeight: 600, color: 'var(--text)', lineHeight: 1.2, marginBottom: 4 }}>
+      {/* Info island — frosted card at bottom */}
+      <div style={{
+        position: 'relative', zIndex: 1,
+        margin: 12,
+        padding: '12px 16px',
+        background: 'var(--bg-card)',
+        backdropFilter: 'blur(12px)', WebkitBackdropFilter: 'blur(12px)' as any,
+        borderRadius: 'var(--radius-lg)',
+        border: '1px solid var(--border)',
+      }}>
+        <div style={{ fontFamily: 'var(--font-serif)', fontSize: '1.15rem', fontWeight: 600, color: 'var(--text)', lineHeight: 1.2, marginBottom: 3 }}>
           {group.name}
         </div>
-        <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.74rem', color: 'var(--text-muted)', marginBottom: 18 }}>
+        <div style={{ fontFamily: 'var(--font-sans)', fontSize: '0.72rem', color: 'var(--text-muted)', marginBottom: members.length > 0 ? 10 : 0 }}>
           {members.length === 0 ? 'No members yet' : `${members.length} ${members.length === 1 ? 'person' : 'people'}`}
         </div>
+        {members.length > 0 && (
+          <AvatarStack members={members} size={26} />
+        )}
       </div>
-
-      {/* Bottom: avatar stack */}
-      {members.length > 0 && (
-        <AvatarStack members={members} size={28} />
-      )}
     </div>
   )
 }
@@ -286,7 +287,7 @@ export function GroupFlow({ allFriends, initialGroup, onSave, onClose, onDelete 
                 className="form-input"
                 placeholder="e.g. The Homies, Work Crew, Book Club"
                 value={name}
-                onChange={e => setName(e.target.value)}
+                onChange={e => e.target.value.length <= 45 && setName(e.target.value)}
                 style={{ fontSize: '1rem', marginBottom: 22, fontFamily: 'var(--font-serif)' }}
               />
 
@@ -325,7 +326,7 @@ export function GroupFlow({ allFriends, initialGroup, onSave, onClose, onDelete 
                 onChange={e => setFriendSearch(e.target.value)}
                 style={{ marginBottom: 10, fontSize: '0.88rem' }}
               />
-              <div style={{ borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', overflow: 'hidden', marginBottom: 24 }}>
+              <div style={{ borderRadius: 'var(--radius-md)', border: '1px solid var(--border)', overflow: 'hidden', marginBottom: 24, maxHeight: 260, overflowY: 'auto' }}>
                 {filteredFriends.length === 0
                   ? <div style={{ padding: 16, textAlign: 'center', fontFamily: 'var(--font-sans)', fontSize: '0.82rem', color: 'var(--text-muted)' }}>No friends found</div>
                   : filteredFriends.map(f => (
@@ -472,7 +473,7 @@ export function GroupFlow({ allFriends, initialGroup, onSave, onClose, onDelete 
                 <input ref={avatarInputRef} type="file" accept="image/*" style={{ display: 'none' }} onChange={handleAvatarChange} />
               </div>
 
-              <input autoFocus className="form-input" placeholder="e.g. The Homies, Work Crew, Book Club" value={name} onChange={e => setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && name.trim() && setStep(1)} style={{ fontSize: '1rem', marginBottom: 16, fontFamily: 'var(--font-serif)' }} />
+              <input autoFocus className="form-input" placeholder="e.g. The Homies, Work Crew, Book Club" value={name} onChange={e => e.target.value.length <= 45 && setName(e.target.value)} onKeyDown={e => e.key === 'Enter' && name.trim() && setStep(1)} style={{ fontSize: '1rem', marginBottom: 16, fontFamily: 'var(--font-serif)' }} />
 
               <textarea
                 className="form-input"
@@ -655,6 +656,7 @@ export default function FriendGroups() {
   const [searchParams, setSearchParams] = useSearchParams()
 
   const [showCreate, setShowCreate] = useState(false)
+  const [groupSearch, setGroupSearch] = useState('')
   const [openGroupId, setOpenGroupId] = useState<string | null>(null)
   const [editingGroupId, setEditingGroupId] = useState<string | null>(() => searchParams.get('edit'))
 
@@ -726,12 +728,24 @@ export default function FriendGroups() {
         </button>
       </div>
 
+      {groups.length > 0 && (
+        <div className="search-bar" style={{ marginBottom: 'var(--space-lg)' }}>
+          <span className="search-icon"><IconSearch size={16} /></span>
+          <input
+            type="text"
+            placeholder="Search groups..."
+            value={groupSearch}
+            onChange={e => setGroupSearch(e.target.value)}
+          />
+        </div>
+      )}
+
       {loading ? <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', minHeight: '40vh' }}><p style={{ fontFamily: 'var(--font-serif)', fontStyle: 'italic', color: 'var(--text-muted)' }}>Loading…</p></div> : groups.length === 0 ? (
         <div style={{ maxWidth: 380, margin: '60px auto', textAlign: 'center' }}>
           <div style={{ fontSize: '3rem', marginBottom: 16, opacity: 0.3 }}>⬡</div>
           <h2 style={{ fontFamily: 'var(--font-serif)', fontSize: '1.3rem', fontWeight: 500, marginBottom: 8 }}>No groups yet</h2>
           <p style={{ fontFamily: 'var(--font-sans)', fontSize: '0.84rem', color: 'var(--text-muted)', marginBottom: 24, lineHeight: 1.6 }}>
-            Group your people however you think of them — by vibe, era, how you know them, or just because.
+            Group your people however you like. Groups also build out your friend graph, connecting people who belong together.
           </p>
           <button className="btn btn-primary" onClick={() => setShowCreate(true)} style={{ padding: '11px 24px' }}>
             Create your first group
@@ -744,7 +758,11 @@ export default function FriendGroups() {
           gap: 16,
           animation: 'fg-gridIn 320ms ease',
         }}>
-          {groups.map(g => (
+          {groups.filter(g => {
+            const q = groupSearch.toLowerCase()
+            if (!q) return true
+            return g.name.toLowerCase().includes(q) || membersOf(g).some(f => f.name.toLowerCase().includes(q))
+          }).map(g => (
             <GroupCard
               key={g.id}
               group={g}

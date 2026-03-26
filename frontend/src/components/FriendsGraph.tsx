@@ -786,18 +786,14 @@ export default function FriendsGraph({
             {tier === 'inner-circle' ? 'Inner circle' : tier === 'close-friend' ? 'Close friend' : 'Casual'}
           </div>
         ))}
-        {groups.length > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <svg width={16} height={4}><line x1={0} y1={2} x2={16} y2={2} stroke="var(--text-muted)" strokeWidth={1.5} strokeDasharray="4 3" /></svg>
-            Group
-          </div>
-        )}
-        {metThroughEdges.length > 0 && (
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-            <svg width={16} height={6}><line x1={0} y1={3} x2={12} y2={3} stroke="var(--text-muted)" strokeWidth={1.5} /><polygon points="12,0.5 16,3 12,5.5" fill="var(--text-muted)" opacity={0.7} /></svg>
-            Met through
-          </div>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <svg width={16} height={4}><line x1={0} y1={2} x2={16} y2={2} stroke="var(--text-muted)" strokeWidth={1.5} strokeDasharray="4 3" /></svg>
+          Group
+        </div>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+          <svg width={16} height={6}><line x1={0} y1={3} x2={12} y2={3} stroke="var(--text-muted)" strokeWidth={1.5} /><polygon points="12,0.5 16,3 12,5.5" fill="var(--text-muted)" opacity={0.7} /></svg>
+          Met through
+        </div>
         <div style={{ opacity: 0.9, fontSize: '0.66rem', marginTop: 4, fontWeight: 500 }}>Drag for details · Click to open</div>
       </div>
     </div>

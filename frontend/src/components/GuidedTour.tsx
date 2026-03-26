@@ -152,10 +152,21 @@ export default function GuidedTour({ steps, onComplete }: { steps: TourStep[]; o
     }
   }, [])
 
-  // Initial entrance
+  // Initial entrance — wait for the first target element to exist in the DOM
   useEffect(() => {
-    const t = setTimeout(() => { measure(); setEntered(true) }, 400)
-    return () => clearTimeout(t)
+    let cancelled = false
+    const tryStart = () => {
+      if (cancelled) return
+      const el = document.querySelector(steps[0]?.selector)
+      if (el) {
+        measure()
+        setEntered(true)
+      } else {
+        requestAnimationFrame(tryStart)
+      }
+    }
+    const t = setTimeout(tryStart, 500)
+    return () => { cancelled = true; clearTimeout(t) }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Step changes — just re-measure, CSS handles the glide
